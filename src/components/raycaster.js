@@ -27,7 +27,8 @@ module.exports.Component = registerComponent('raycaster', {
     objects: {default: ''},
     origin: {type: 'vec3'},
     recursive: {default: true},
-    showLine: {default: false}
+    showLine: {default: false},
+    adjustLineLength: {default: true}
   },
 
   init: function () {
@@ -201,7 +202,7 @@ module.exports.Component = registerComponent('raycaster', {
 
     // Update line length.
     if (data.showLine) {
-      if (intersections.length) {
+      if (data.adjustLineLength && intersections.length) {
         if (intersections[0].object.el === el && intersections[1]) {
           lineLength = intersections[1].distance;
         } else {

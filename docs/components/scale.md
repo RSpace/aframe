@@ -3,6 +3,8 @@ title: scale
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/scale.js
+examples: []
 ---
 
 The scale component defines a shrinking, stretching, or skewing transformation
@@ -21,10 +23,6 @@ two-fold along the Z-direction:
 ```
 
 ## Value
-
-A-Frame uses a right-handed coordinate system. When aligning our right hand's
-thumb with a positive axis, our hand will curl in the positive direction of
-rotation.
 
 If we set any of the scaling factors to 0, then A-Frame will assign instead a
 negligible value.

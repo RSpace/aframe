@@ -24,11 +24,15 @@ var TestComponent = {
 };
 
 suite('a-entity', function () {
+  var el;
+
   setup(function (done) {
-    var el = this.el = entityFactory();
-    el.addEventListener('loaded', function () {
+    el = this.el = entityFactory();
+    var onLoaded = function () {
       done();
-    });
+      el.removeEventListener('loaded', onLoaded);
+    };
+    el.addEventListener('loaded', onLoaded);
   });
 
   teardown(function () {
@@ -153,6 +157,7 @@ suite('a-entity', function () {
       entity.addEventListener('loaded', function () {
         assert.ok(entityChild1.hasLoaded);
         assert.ok(entityChild2.hasLoaded);
+        document.body.removeChild(scene);
         done();
       });
     });
@@ -199,6 +204,7 @@ suite('a-entity', function () {
       el.addEventListener('loaded', function () {
         assert.ok(assetsEl.hasLoaded);
         assert.ok(el.hasLoaded);
+        document.body.removeChild(sceneEl);
         done();
       });
       ANode.prototype.load.call(assetsEl);
@@ -637,6 +643,64 @@ suite('a-entity', function () {
       setTimeout(function () {
         assert.notOk(nodeLoadSpy.called);
         done();
+      });
+    });
+
+    test('wait for all the children nodes that are not yet nodes to load', function (done) {
+      var el = this.el;
+      var a = document.createElement('a-entity');
+      var b = document.createElement('a-entity');
+      var aLoaded = false;
+      var bLoaded = false;
+      el.appendChild(a);
+      el.appendChild(b);
+      process.nextTick(function () {
+        a.isNode = false;
+        a.hasLoaded = false;
+        b.isNode = false;
+        b.hasLoaded = false;
+        el.hasLoaded = false;
+        el.addEventListener('loaded', function () {
+          assert.ok(el.hasLoaded);
+          assert.ok(aLoaded);
+          assert.ok(bLoaded);
+          done();
+        });
+        a.addEventListener('loaded', function () { aLoaded = true; });
+        b.addEventListener('loaded', function () { bLoaded = true; });
+        el.load();
+        assert.notOk(el.hasLoaded);
+        a.load();
+        b.load();
+      });
+    });
+
+    test('wait for all the children primitives that are not yet nodes to load', function (done) {
+      var el = this.el;
+      var a = document.createElement('a-sphere');
+      var b = document.createElement('a-box');
+      var aLoaded = false;
+      var bLoaded = false;
+      el.appendChild(a);
+      el.appendChild(b);
+      process.nextTick(function () {
+        a.isNode = false;
+        a.hasLoaded = false;
+        b.isNode = false;
+        b.hasLoaded = false;
+        el.hasLoaded = false;
+        el.addEventListener('loaded', function () {
+          assert.ok(el.hasLoaded);
+          assert.ok(aLoaded);
+          assert.ok(bLoaded);
+          done();
+        });
+        a.addEventListener('loaded', function () { aLoaded = true; });
+        b.addEventListener('loaded', function () { bLoaded = true; });
+        el.load();
+        assert.notOk(el.hasLoaded);
+        a.load();
+        b.load();
       });
     });
   });
@@ -1098,7 +1162,7 @@ suite('a-entity', function () {
 
         update: function (oldData) {
           var data = this.data;
-          if (Object.keys(oldData).length) {
+          if (oldData && Object.keys(oldData).length) {
             // Second update via setAttribute.
             assert.equal(data.foo, 10);
             assert.equal(data.bar, 'orange');

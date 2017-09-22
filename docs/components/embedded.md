@@ -3,6 +3,8 @@ title: embedded
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/scene/embedded.js
+examples: []
 ---
 
 The embedded component removes fullscreen CSS styles from A-Frame's
@@ -32,7 +34,7 @@ a-scene {
 
 An example of an embedded scene:
 
-<script src="https://aframe.io/releases/0.6.0/aframe.min.js"></script>
+<script src="https://aframe.io/releases/0.7.0/aframe.min.js"></script>
 
 <style>
   #myEmbeddedScene {

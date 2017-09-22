@@ -1,4 +1,4 @@
-/* global AFRAME, assert, process, suite, teardown, test, setup, sinon, HTMLElement */
+/* global AFRAME, assert, process, suite, teardown, test, setup, sinon, HTMLElement, HTMLHeadElement */
 var Component = require('core/component');
 var components = require('index').components;
 
@@ -139,8 +139,7 @@ suite('Component', function () {
       assert.equal(data, 'green');
     });
 
-    test('returns default value for a single-property schema ' +
-         'when the attribute is empty string', function () {
+    test('returns default for single-prop schema when attr is empty string', function () {
       var data;
       registerComponent('dummy', {
         schema: {default: 'red'}
@@ -186,6 +185,31 @@ suite('Component', function () {
       assert.equal(data.depthTest, false);
       assert.equal(data.color, 'red');
     });
+
+    test('returns data for single-prop if default is null', function () {
+      var el = document.createElement('a-entity');
+      registerComponent('test', {
+        schema: {default: null}
+      });
+      el.setAttribute('test', '');
+      assert.equal(el.components.test.buildData(), null);
+      assert.equal(el.components.test.buildData(null), null);
+      assert.equal(el.components.test.buildData('foo'), 'foo');
+    });
+
+    test('returns data for multi-prop if default is null with previousData', function () {
+      var el = document.createElement('a-entity');
+      registerComponent('test', {
+        schema: {
+          foo: {default: null}
+        }
+      });
+      el.setAttribute('test', '');
+      el.components.test.attrValue = {foo: null};
+      assert.equal(el.components.test.buildData().foo, null);
+      assert.equal(el.components.test.buildData({foo: null}).foo, null);
+      assert.equal(el.components.test.buildData({foo: 'foo'}).foo, 'foo');
+    });
   });
 
   suite('updateProperties', function () {
@@ -193,15 +217,15 @@ suite('Component', function () {
 
     setup(function () {
       el = entityFactory();
+      components.dummy = undefined;
     });
 
     test('emits componentchanged for multi-prop', function (done) {
       el.setAttribute('material', 'color: red');
       el.addEventListener('componentchanged', function (evt) {
         if (evt.detail.name !== 'material') { return; }
-        assert.equal(evt.detail.oldData.color, 'red');
-        assert.equal(evt.detail.newData.color, 'blue');
         assert.equal(evt.detail.name, 'material');
+        assert.equal(el.getAttribute('material').color, 'blue');
         assert.ok('id' in evt.detail);
         done();
       });
@@ -214,8 +238,7 @@ suite('Component', function () {
       el.setAttribute('position', {x: 0, y: 0, z: 0});
       el.addEventListener('componentchanged', function (evt) {
         if (evt.detail.name !== 'position') { return; }
-        assert.shallowDeepEqual(evt.detail.oldData, {x: 0, y: 0, z: 0});
-        assert.shallowDeepEqual(evt.detail.newData, {x: 1, y: 2, z: 3});
+        assert.shallowDeepEqual(el.getAttribute('position'), {x: 1, y: 2, z: 3});
         assert.equal(evt.detail.name, 'position');
         assert.ok('id' in evt.detail);
         done();
@@ -228,8 +251,7 @@ suite('Component', function () {
     test('emits componentchanged for value', function (done) {
       el.addEventListener('componentchanged', function (evt) {
         if (evt.detail.name !== 'visible') { return; }
-        assert.shallowDeepEqual(evt.detail.oldData, true);
-        assert.shallowDeepEqual(evt.detail.newData, false);
+        assert.equal(el.getAttribute('visible'), false);
         assert.equal(evt.detail.name, 'visible');
         done();
       });
@@ -258,6 +280,53 @@ suite('Component', function () {
       });
       // Initialization.
       el.setAttribute('material', 'color', 'red');
+    });
+
+    test('does not update for multi-prop if not changed', function (done) {
+      var spy = this.sinon.spy();
+
+      AFRAME.registerComponent('test', {
+        schema: {
+          foo: {type: 'string'},
+          bar: {type: 'string'}
+        },
+
+        update: function () {
+          spy();
+        }
+      });
+
+      el.addEventListener('loaded', () => {
+        el.setAttribute('test', {foo: 'foo', bar: 'bar'});
+        el.setAttribute('test', {foo: 'foo', bar: 'bar'});
+        el.setAttribute('test', {foo: 'foo', bar: 'bar'});
+        assert.equal(spy.getCalls().length, 1);
+        done();
+      });
+    });
+
+    test('does not update for multi-prop if not changed using same object', function (done) {
+      var data = {foo: 'foo', bar: 'bar'};
+      var spy = this.sinon.spy();
+
+      AFRAME.registerComponent('test', {
+        schema: {
+          foo: {type: 'string'},
+          bar: {type: 'string'}
+        },
+
+        update: function () {
+          spy();
+        }
+      });
+
+      el.addEventListener('loaded', () => {
+        el.setAttribute('test', data);
+        el.setAttribute('test', data);
+        el.setAttribute('test', data);
+        assert.equal(spy.getCalls().length, 1);
+        done();
+      });
     });
 
     test('does not emit componentchanged for single-prop if not changed', function (done) {
@@ -307,12 +376,80 @@ suite('Component', function () {
     test('emits componentinitialized', function (done) {
       el.addEventListener('componentinitialized', function (evt) {
         if (evt.detail.name !== 'material') { return; }
-        assert.ok(evt.detail.data);
         assert.ok('id' in evt.detail);
         assert.equal(evt.detail.name, 'material');
         done();
       });
       el.setAttribute('material', '');
+    });
+
+    test('a selector property default is not cloned into data', function () {
+      registerComponent('dummy', {
+        schema: {type: 'selector', default: document.body}
+      });
+      var el = document.createElement('a-entity');
+      el.hasLoaded = true;
+      el.setAttribute('dummy', 'head');
+      el.components.dummy.updateProperties('');
+      assert.equal(el.components.dummy.data, el.components.dummy.schema.default);
+    });
+
+    test('a plain object schema default is cloned into data', function () {
+      registerComponent('dummy', {
+        schema: {type: 'vec3', default: {x: 1, y: 1, z: 1}}
+      });
+      var el = document.createElement('a-entity');
+      el.hasLoaded = true;
+      el.setAttribute('dummy', '2 2 2');
+      el.components.dummy.updateProperties('');
+      assert.notEqual(el.components.dummy.data, el.components.dummy.schema.default);
+      assert.deepEqual(el.components.dummy.data, {x: 1, y: 1, z: 1});
+    });
+
+    test('do not clone properties from attrValue into data that are not plain objects', function () {
+      registerComponent('dummy', {
+        schema: {
+          color: {default: 'blue'},
+          direction: {type: 'vec3'},
+          el: {type: 'selector', default: 'body'}
+        }
+      });
+      var el = document.createElement('a-entity');
+      el.hasLoaded = true;
+      el.setAttribute('dummy', '');
+      assert.notOk(el.components.dummy.attrValue.el);
+      // The direction property will be preserved
+      // across updateProperties calls but cloned
+      // into a different object
+      el.components.dummy.updateProperties({
+        color: 'green',
+        direction: {x: 1, y: 1, z: 1},
+        el: document.head
+      });
+      el.components.dummy.updateProperties({
+        color: 'red',
+        el: document.head
+      });
+      var data = el.getAttribute('dummy');
+      var attrValue = el.components.dummy.attrValue;
+      assert.notEqual(data, attrValue);
+      assert.equal(data.color, attrValue.color);
+      // The HTMLElement is not cloned in attrValue
+      // a reference is shared instead.
+      assert.equal(data.el, attrValue.el);
+      assert.equal(data.el.constructor, HTMLHeadElement);
+      assert.notEqual(data.direction, attrValue.direction);
+      assert.deepEqual(data.direction, {x: 1, y: 1, z: 1});
+      assert.deepEqual(attrValue.direction, {x: 1, y: 1, z: 1});
+      el.components.dummy.updateProperties({
+        color: 'red',
+        direction: {x: 1, y: 1, z: 1}
+      });
+      data = el.getAttribute('dummy');
+      // The HTMLElement is not cloned in attrValue
+      // a reference is shared instead.
+      assert.equal(data.el.constructor, HTMLHeadElement);
+      assert.equal(data.el, el.components.dummy.attrValue.el);
     });
   });
 
@@ -606,12 +743,94 @@ suite('Component', function () {
         schema: {color: {default: 'red'}},
         update: function () { this.el.setAttribute('dummy', 'color', 'blue'); }
       });
-      this.el.addEventListener('componentchanged', function (evt) {
-        assert.equal('blue', evt.detail.newData.color);
+      this.el.addEventListener('componentchanged', evt => {
+        assert.equal(evt.detail.name, 'dummy');
+        assert.equal(this.el.getAttribute('dummy').color, 'blue');
         done();
       });
       var component = new TestComponent(this.el);
       assert.equal(component.data.color, 'blue');
+    });
+
+    test('oldData is empty object on the first call when a single property component with an object as default initializes', function () {
+      var updateStub = sinon.stub();
+      registerComponent('dummy', {
+        schema: {type: 'vec3'},
+        update: updateStub
+      });
+      this.el.setAttribute('dummy', '');
+      sinon.assert.calledOnce(updateStub);
+      // old Data passed to the update method
+      assert.deepEqual(updateStub.getCalls()[0].args[0], {});
+    });
+
+    test('oldData is empty object on the first call when a multiple property component initializes', function () {
+      var updateStub = sinon.stub();
+      registerComponent('dummy', {
+        schema: {
+          color: {default: 'red'},
+          size: {default: 0}
+        },
+        update: updateStub
+      });
+      this.el.setAttribute('dummy', '');
+      sinon.assert.calledOnce(updateStub);
+      // old Data passed to the update method
+      assert.deepEqual(updateStub.getCalls()[0].args[0], {});
+    });
+
+    test('oldData is undefined on the first call when a single property component initializes', function () {
+      var updateStub = sinon.stub();
+      registerComponent('dummy', {
+        schema: {default: 0},
+        update: updateStub
+      });
+      this.el.setAttribute('dummy', '');
+      sinon.assert.calledOnce(updateStub);
+      // old Data passed to the update method
+      assert.equal(updateStub.getCalls()[0].args[0], undefined);
+    });
+
+    test('called when modifying component with value returned from getAttribute', function () {
+      var el = this.el;
+      var direction;
+      var updateStub = sinon.stub();
+      registerComponent('dummy', {
+        schema: {type: 'vec3', default: {x: 1, y: 1, z: 1}},
+        update: updateStub
+      });
+      el.setAttribute('dummy', '');
+      direction = el.getAttribute('dummy');
+      assert.deepEqual(direction, {x: 1, y: 1, z: 1});
+      direction.x += 1;
+      direction.y += 1;
+      direction.z += 1;
+      el.setAttribute('dummy', direction);
+      sinon.assert.calledTwice(updateStub);
+      // old Data passed to the update method
+      assert.deepEqual(updateStub.getCalls()[0].args[0], {});
+      assert.deepEqual(updateStub.getCalls()[1].args[0], {x: 1, y: 1, z: 1});
+      assert.deepEqual(el.components.dummy.data, {x: 2, y: 2, z: 2});
+    });
+
+    test('oldData and data is properly passed on recursive calls to setAttribute', function () {
+      var el = this.el;
+      registerComponent('dummy', {
+        schema: {
+          color: {default: 'red'},
+          size: {default: 0}
+        },
+        update: function (oldData) {
+          if (this.data.color === 'red') {
+            this.el.setAttribute('dummy', 'color', 'blue');
+          }
+          if (oldData.color === 'red') {
+            this.el.setAttribute('dummy', 'color', 'green');
+          }
+        }
+      });
+      el.setAttribute('dummy', 'color: red');
+      assert.equal(el.getAttribute('dummy').color, 'green');
     });
   });
 

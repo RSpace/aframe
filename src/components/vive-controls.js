@@ -34,16 +34,9 @@ module.exports.Component = registerComponent('vive-controls', {
    * 4 - system (never dispatched on this layer)
    */
   mapping: {
-    axes: {'trackpad': [0, 1]},
+    axes: {trackpad: [0, 1]},
     buttons: ['trackpad', 'trigger', 'grip', 'menu', 'system']
   },
-
-  /**
-   * Labels for detail on axis events such as `thumbstickmoved`.
-   * For example, on `thumbstickmoved` detail, the first axis returned is labeled x, and the
-   * second is labeled y.
-   */
-  axisLabels: ['x', 'y', 'z', 'w'],
 
   init: function () {
     var self = this;
@@ -66,15 +59,11 @@ module.exports.Component = registerComponent('vive-controls', {
   play: function () {
     this.checkIfControllerPresent();
     this.addControllersUpdateListener();
-    // Note that due to gamepadconnected event propagation issues, we don't rely on events.
-    window.addEventListener('gamepaddisconnected', this.checkIfControllerPresent, false);
   },
 
   pause: function () {
     this.removeEventListeners();
     this.removeControllersUpdateListener();
-    // Note that due to gamepadconnected event propagation issues, we don't rely on events.
-    window.removeEventListener('gamepaddisconnected', this.checkIfControllerPresent, false);
   },
 
   bindMethods: function () {
@@ -94,6 +83,7 @@ module.exports.Component = registerComponent('vive-controls', {
     el.addEventListener('touchstart', this.onButtonTouchStart);
     el.addEventListener('model-loaded', this.onModelLoaded);
     el.addEventListener('axismove', this.onAxisMoved);
+    this.controllerEventsActive = true;
   },
 
   removeEventListeners: function () {
@@ -105,6 +95,7 @@ module.exports.Component = registerComponent('vive-controls', {
     el.removeEventListener('touchstart', this.onButtonTouchStart);
     el.removeEventListener('model-loaded', this.onModelLoaded);
     el.removeEventListener('axismove', this.onAxisMoved);
+    this.controllerEventsActive = false;
   },
 
   /**

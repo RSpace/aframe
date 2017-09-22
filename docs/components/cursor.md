@@ -3,6 +3,8 @@ title: cursor
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/cursor.js
+examples: []
 ---
 
 [a-cursor]: ../primitives/a-cursor.md
@@ -12,21 +14,23 @@ parent_section: components
 The cursor component provides hover and click states for interaction on top of
 the [raycaster component][raycaster]. The cursor component can be used for
 both gaze-based and controller-based interactions, but the appearance needs
-to be configured depending on the use case. The [`<a-cursor>` primitive] provides
-a default reticle appearance for a gaze-based cursor, and the [laser-controls
-component] configures the cursor for all controllers.
+to be configured depending on the use case. The [`<a-cursor>`
+primitive][a-cursor] provides a default reticle appearance for a gaze-based
+cursor, and the [laser-controls component][laser-controls] configures the
+cursor for all controllers.
 
 The cursor component listens to events and keeps state on what's being hovered
 and pressed in order to provide `mousedown`, `mouseup`, `mouseenter`,
-`mouseleave`, and `click` events. We name use the `mouse` name to mimic
+`mouseleave`, and `click` events. We use the name `mouse` to mimic
 traditional web development for now. Under the hood, the cursor component uses
 the `raycaster-intersected` and `raycaster-intersection-cleared` events,
 capturing the closest visible intersected entity.
 
-By default, the cursor is configured to be used in a gaze-based mode.
-Specifying the `downEvents` and `upEvents` properties allows the cursor to work
-with controllers.  The [laser-controls component][laser-controls] automatically
-configures those.
+By default, the cursor is configured to be used in a gaze-based mode and will
+register user input via mouse or touch. Specifying the `downEvents` and
+`upEvents` properties allows the cursor to work with controllers. For example,
+the [laser-controls component][laser-controls] automatically configures these
+properties to work with most controllers..
 
 [geometry]: ./geometry.md
 [line]: ./line.md
@@ -60,13 +64,14 @@ When the cursor clicks on the box, we can listen to the click event.
 ```
 
 ```js
-// Component to change to random color on click.
+// Component to change to a sequential color on click.
 AFRAME.registerComponent('cursor-listener', {
   init: function () {
+    var lastIndex = -1;
     var COLORS = ['red', 'green', 'blue'];
     this.el.addEventListener('click', function (evt) {
-      var randomIndex = Math.floor(Math.random() * COLORS.length);
-      this.setAttribute('material', 'color', COLORS[randomIndex]);
+      lastIndex = (lastIndex + 1) % COLORS.length;
+      this.setAttribute('material', 'color', COLORS[lastIndex]);
       console.log('I was clicked at: ', evt.detail.intersection.point);
     });
   }
@@ -80,6 +85,7 @@ AFRAME.registerComponent('cursor-listener', {
 | downEvents  | Array of additional events on the entity to *listen* to for triggering `mousedown` (e.g., `triggerdown` for vive-controls).  | []                               |
 | fuse        | Whether cursor is fuse-based.                                                                                              | false on desktop, true on mobile |
 | fuseTimeout | How long to wait (in milliseconds) before triggering a fuse-based click event.                                             | 1500                             |
+| rayOrigin     | Where the intersection ray is cast from (i.e.,entity or mouse) | entity
 | upEvents    | Array of additional events on the entity to *listen* to for triggering `mouseup` (e.g., `trackpadup` for daydream-controls). | []                               |
 
 To further customize the cursor component, we configure the cursor's dependency
@@ -148,18 +154,18 @@ intersects the entity, it will emit an event, and the animation system will
 pick up event with the `begin` attribute:
 
 ```html
-<a-entity cursor="fuse: true; fuseTimeout: 500"
-          position="0 0 -1"
+<a-entity cursor="fuse: true;"
+          position="0 0 -3"
           geometry="primitive: ring"
           material="color: black; shader: flat">
-  <a-animation begin="click" easing="ease-in" attribute="scale"
-               fill="backwards" from="0.1 0.1 0.1" to="1 1 1"></a-animation>
-  <a-animation begin="cursor-fusing" easing="ease-in" attribute="scale"
+  <a-animation begin="click" easing="ease-in" attribute="scale" dur="150"
+               fill="forwards" from="0.1 0.1 0.1" to="1 1 1"></a-animation>
+  <a-animation begin="cursor-fusing" easing="ease-in" attribute="scale" dur="1500"
                fill="backwards" from="1 1 1" to="0.1 0.1 0.1"></a-animation>
 </a-entity>
 ```
 
-[cursor-codepen]: http://codepen.io/anon/pen/dpmpJP
+[cursor-codepen]: https://codepen.io/Absulit/pen/WEKjqm
 
 To play with an example of a cursor with visual feedback, check out the [Cursor
 with Visual Feedback example on CodePen][cursor-codepen].

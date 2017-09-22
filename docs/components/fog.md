@@ -3,6 +3,8 @@ title: fog
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/scene/fog.js
+examples: []
 ---
 
 The fog component obscures entities in fog given distance from the camera. The

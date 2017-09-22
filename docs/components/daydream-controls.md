@@ -3,6 +3,8 @@ title: daydream-controls
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/daydream-controls.js
+examples: []
 ---
 
 [trackedcontrols]: ./tracked-controls.md

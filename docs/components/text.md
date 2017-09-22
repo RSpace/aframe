@@ -3,6 +3,8 @@ title: text
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/text.js
+examples: []
 ---
 
 The text component renders signed distance field (SDF) font text.
@@ -241,6 +243,8 @@ The text component does not make use of all of the features of the
 Bitmap font rendering limits you to the characters included in the font
 (*Unicode this is not*). SDF font rendering tends to produce smooth sharp edges
 [though there are ways around this][sdfsmooth].
+
+The generated text is not suitable for raycaster intersection testing. For raycaster or cursor detection it is necessary to use a geometry component along with the text component.
 
 ## Further Reading
 

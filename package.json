@@ -1,6 +1,6 @@
 {
   "name": "aframe",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A web framework for building virtual reality experiences.",
   "homepage": "https://aframe.io/",
   "main": "dist/aframe-master.js",
@@ -18,7 +18,7 @@
     "lint": "semistandard -v | snazzy",
     "lint:fix": "semistandard --fix",
     "precommit": "npm run lint",
-    "prerelease": "node scripts/release.js 0.5.0 0.6.0",
+    "prerelease": "node scripts/release.js 0.6.1 0.7.0",
     "start": "npm run dev",
     "test": "karma start ./tests/karma.conf.js",
     "test:docs": "node scripts/docsLint.js",
@@ -29,6 +29,7 @@
   "repository": "aframevr/aframe",
   "license": "MIT",
   "dependencies": {
+    "@tweenjs/tween.js": "^16.8.0",
     "browserify-css": "^0.8.2",
     "debug": "ngokevin/debug#noTimestamp",
     "deep-assign": "^2.0.0",
@@ -39,10 +40,9 @@
     "present": "0.0.6",
     "promise-polyfill": "^3.1.0",
     "style-attr": "^1.0.2",
-    "three": "^0.84.0",
+    "three": "^0.87.0",
     "three-bmfont-text": "^2.1.0",
-    "tween.js": "^15.0.0",
-    "webvr-polyfill": "^0.9.35"
+    "webvr-polyfill": "^0.9.36"
   },
   "devDependencies": {
     "browserify": "^13.1.0",
@@ -76,7 +76,7 @@
     "minifyify": "^7.3.3",
     "mocha": "^3.0.2",
     "mozilla-download": "^1.1.1",
-    "replace": "^0.3.0",
+    "replace-in-file": "^2.5.3",
     "semistandard": "^9.0.0",
     "shelljs": "^0.7.7",
     "shx": "^0.2.2",

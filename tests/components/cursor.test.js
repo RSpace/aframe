@@ -1,4 +1,4 @@
-/* global assert, process, setup, suite, test */
+/* global assert, process, setup, suite, test, CustomEvent */
 var entityFactory = require('../helpers').entityFactory;
 var once = require('../helpers').once;
 
@@ -22,9 +22,7 @@ suite('cursor', function () {
     el.addEventListener('componentinitialized', function (evt) {
       if (evt.detail.name !== 'cursor') { return; }
       component = el.components.cursor;
-      setTimeout(() => {
-        done();
-      });
+      done();
     });
     cameraEl.appendChild(el);
   });
@@ -74,6 +72,16 @@ suite('cursor', function () {
         });
         assert.notOk(el.is('cursor-hovering'));
         done();
+      });
+    });
+
+    suite('update', function () {
+      test('update mousemove event listeners when rayOrigin is the mouse', function () {
+        var updateSpy = this.sinon.spy(el.components.cursor, 'update');
+        var updateMouseEventListenersSpy = this.sinon.spy(el.components.cursor, 'updateMouseEventListeners');
+        el.setAttribute('cursor', 'rayOrigin', 'mouse');
+        assert.ok(updateSpy.called);
+        assert.ok(updateMouseEventListenersSpy.called);
       });
     });
   });
@@ -346,6 +354,109 @@ suite('cursor', function () {
       el.emit('raycaster-intersection-cleared', {el: intersectedEl});
       assert.notOk(el.is('cursor-fusing'));
       assert.notOk(el.is('cursor-hovering'));
+    });
+  });
+
+  suite('onIntersectionCleared', function () {
+    test('does not do anything if not intersecting', function () {
+      el.emit('raycaster-intersection-cleared', {el: intersectedEl});
+    });
+
+    test('does not do anything if only the cursor is intersecting', function () {
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      el.emit('raycaster-intersection-cleared', {els: [el]});
+      assert.ok(component.intersection);
+      assert.ok(component.intersectedEl);
+    });
+
+    test('unsets intersectedEl', function () {
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      el.emit('raycaster-intersection-cleared', {el: intersectedEl});
+      assert.notOk(component.intersection);
+      assert.notOk(component.intersectedEl);
+    });
+
+    test('removes cursor-hovered state on intersectedEl', function () {
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      intersectedEl.addState('cursor-hovered');
+      el.emit('raycaster-intersection-cleared', {el: intersectedEl});
+      assert.notOk(intersectedEl.is('cursor-hovered'));
+    });
+
+    test('emits mouseleave event on el', function (done) {
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      once(el, 'mouseleave', function (evt) {
+        assert.equal(evt.detail.intersectedEl, intersectedEl);
+        done();
+      });
+      el.emit('raycaster-intersection-cleared', {el: intersectedEl});
+    });
+
+    test('emits mouseleave event on intersectedEl', function (done) {
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      once(intersectedEl, 'mouseleave', function (evt) {
+        assert.equal(evt.detail.cursorEl, el);
+        done();
+      });
+      el.emit('raycaster-intersection-cleared', {el: intersectedEl});
+    });
+
+    test('removes cursor-hovering and cursor-fusing states on cursor', function () {
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      el.addState('cursor-fusing');
+      el.addState('cursor-hovering');
+      el.emit('raycaster-intersection-cleared', {el: intersectedEl});
+      assert.notOk(el.is('cursor-fusing'));
+      assert.notOk(el.is('cursor-hovering'));
+    });
+  });
+
+  suite('onMouseMove', function () {
+    test('update raycaster based on mouse coordinates', function (done) {
+      var event = new CustomEvent('mousemove');
+      event.clientX = 5;
+      event.clientY = 5;
+      el.setAttribute('cursor', 'rayOrigin', 'mouse');
+      window.dispatchEvent(event);
+      process.nextTick(function () {
+        var raycaster = el.getAttribute('raycaster');
+        assert.notEqual(raycaster.direction.x, 0);
+        done();
+      });
+    });
+  });
+
+  suite('canvas events', function () {
+    test('cursor responds to mouse events on canvas', function () {
+      // Cannot spy on onCursorDown/Up directly due to binding.
+      var cursorEmitSpy = this.sinon.spy(component, 'twoWayEmit');
+      var downEvt = new CustomEvent('mousedown');
+      var upEvt = new CustomEvent('mouseup');
+      assert.isFalse(cursorEmitSpy.calledWith('mousedown'));
+      el.sceneEl.canvas.dispatchEvent(downEvt);
+      assert.isTrue(cursorEmitSpy.calledWith('mousedown'));
+      assert.isFalse(cursorEmitSpy.calledWith('mouseup'));
+      el.sceneEl.canvas.dispatchEvent(upEvt);
+      assert.isTrue(cursorEmitSpy.calledWith('mouseup'));
+    });
+
+    test('cursor responds to touch events on canvas', function () {
+      // Cannot spy on onCursorDown/Up directly due to binding.
+      var cursorEmitSpy = this.sinon.spy(component, 'twoWayEmit');
+      var downEvt = new CustomEvent('touchstart');
+      var upEvt = new CustomEvent('touchend');
+      assert.isFalse(cursorEmitSpy.calledWith('mousedown'));
+      el.sceneEl.canvas.dispatchEvent(downEvt);
+      assert.isTrue(cursorEmitSpy.calledWith('mousedown'));
+      assert.isFalse(cursorEmitSpy.calledWith('mouseup'));
+      el.sceneEl.canvas.dispatchEvent(upEvt);
+      assert.isTrue(cursorEmitSpy.calledWith('mouseup'));
     });
   });
 });

@@ -3,10 +3,11 @@ title: <a-link>
 type: primitives
 layout: docs
 parent_section: primitives
+source_code: src/extras/primitives/primitives/a-link.js
 ---
 
 The link primitive provides a compact API to define links that resembles
-the <a> traditional tag.
+the traditional `<a>` tag.
 
 ## Attributes
 

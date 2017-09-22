@@ -4,6 +4,8 @@ type: core
 layout: docs
 parent_section: core
 order: 9
+source_code: src/core/a-assets.js
+examples: []
 ---
 
 A-Frame has an asset management system that allows us to place our assets in
@@ -45,7 +47,7 @@ entities using selectors:
   </a-assets>
 
   <!-- Scene. -->
-  <a-plane src="advertisement"></a-plane>
+  <a-plane src="#advertisement"></a-plane>
   <a-sound src="#neigh"></a-sound>
   <a-entity geometry="primitive: plane" material="src: #kentucky-derby"></a-entity>
   <a-entity mixin="giant" obj-model="obj: #horse-obj; mtl: #horse-mtl"></a-entity>
@@ -114,7 +116,7 @@ network is slow.
   <a-assets timeout="10000">
     <!-- You got until the count of 10 to load else the show will go on without you. -->
     <img src="bigimage.png">
-  </a-asset>
+  </a-assets>
 </a-scene>
 ```
 

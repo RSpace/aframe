@@ -1,4 +1,3 @@
-require('./blend-character-model');
 require('./camera');
 require('./collada-model');
 require('./cursor');
@@ -26,8 +25,8 @@ require('./tracked-controls');
 require('./visible');
 require('./vive-controls');
 require('./wasd-controls');
+require('./windows-motion-controls');
 
-require('./scene/canvas');
 require('./scene/debug');
 require('./scene/embedded');
 require('./scene/inspector');

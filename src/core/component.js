@@ -35,17 +35,17 @@ var Component = module.exports.Component = function (el, attrValue, id) {
   this.el = el;
   this.id = id;
   this.attrName = this.name + (id ? '__' + id : '');
+  this.evtDetail = {id: this.id, name: this.name};
   this.initialized = false;
   this.el.components[this.attrName] = this;
+
+  // Store component data from previous update call.
+  this.oldData = undefined;
+
   // Last value passed to updateProperties.
   this.previousAttrValue = undefined;
-  this.throttledEmitComponentChanged = utils.throttle(function emitComponentChange (oldData) {
-    el.emit('componentchanged', {
-      id: self.id,
-      name: self.name,
-      newData: self.data,
-      oldData: oldData
-    }, false);
+  this.throttledEmitComponentChanged = utils.throttle(function emitChange () {
+    el.emit('componentchanged', self.evtDetail, false);
   }, 200);
   this.updateProperties(attrValue);
 };
@@ -144,17 +144,6 @@ Component.prototype = {
   },
 
   /**
-   * Returns a copy of data such that we don't expose the private this.data.
-   *
-   * @returns {object} data
-   */
-  getData: function () {
-    var data = this.data;
-    if (typeof data !== 'object') { return data; }
-    return utils.extend({}, data);
-  },
-
-  /**
    * Update the cache of the pre-parsed attribute value.
    *
    * @param {string} value - New data.
@@ -228,8 +217,8 @@ Component.prototype = {
   updateProperties: function (attrValue, clobber) {
     var el = this.el;
     var isSinglePropSchema;
-    var oldData;
     var skipTypeChecking;
+    var oldData = this.oldData;
 
     // Just cache the attribute if the entity has not loaded
     // Components are not initialized until the entity has loaded
@@ -239,10 +228,8 @@ Component.prototype = {
     }
 
     isSinglePropSchema = isSingleProp(this.schema);
-    // Copy old data since this.data is going to be recreated.
-    oldData = extendProperties({}, this.data, isSinglePropSchema);
     // Disable type checking if the passed attribute is an object and has not changed.
-    skipTypeChecking = typeof this.previousAttrValue === 'object' &&
+    skipTypeChecking = attrValue !== null && typeof this.previousAttrValue === 'object' &&
                        attrValue === this.previousAttrValue;
     // Cache previously passed attribute to decide if we skip type checking.
     this.previousAttrValue = attrValue;
@@ -263,22 +250,24 @@ Component.prototype = {
       this.init();
       this.initialized = true;
       delete el.initializingComponents[this.name];
-      // Play the component if the entity is playing.
+      // For oldData, pass empty object to multiple-prop schemas or object single-prop schema.
+      // Pass undefined to rest of types.
+      oldData = (!isSinglePropSchema ||
+                 typeof parseProperty(undefined, this.schema) === 'object') ? {} : undefined;
+      // Store current data as previous data for future updates.
+      this.oldData = extendProperties({}, this.data, isSinglePropSchema);
       this.update(oldData);
+      // Play the component if the entity is playing.
       if (el.isPlaying) { this.play(); }
-      el.emit('componentinitialized', {
-        id: this.id,
-        name: this.name,
-        data: this.getData()
-      }, false);
+      el.emit('componentinitialized', this.evtDetail, false);
     } else {
       // Don't update if properties haven't changed
-      if (!skipTypeChecking && utils.deepEqual(oldData, this.data)) { return; }
-
+      if (utils.deepEqual(this.oldData, this.data)) { return; }
+     // Store current data as previous data for future updates.
+      this.oldData = extendProperties({}, this.data, isSinglePropSchema);
       // Update component.
       this.update(oldData);
-      // Limit event to fire once every 200ms.
-      this.throttledEmitComponentChanged(oldData);
+      this.throttledEmitComponentChanged();
     }
   },
 
@@ -336,37 +325,47 @@ Component.prototype = {
    * @return {object} The component data
    */
   buildData: function (newData, clobber, silent, skipTypeChecking) {
-    var self = this;
     var componentDefined = newData !== undefined && newData !== null;
     var data;
+    var defaultValue;
+    var keys;
+    var keysLength;
+    var mixinData;
     var schema = this.schema;
+    var i;
     var isSinglePropSchema = isSingleProp(schema);
     var mixinEls = this.el.mixinEls;
     var previousData;
-
     // 1. Default values (lowest precendence).
     if (isSinglePropSchema) {
-      data = schema.default;
+      // Clone default value if plain object so components don't share the same object
+      // that might be modified by the user.
+      data = (schema.default && schema.default.constructor === Object) ? utils.clone(schema.default) : schema.default;
     } else {
       // Preserve previously set properties if clobber not enabled.
       previousData = !clobber && this.attrValue;
-      data = typeof previousData === 'object' ? utils.extend({}, previousData) : {};
-      Object.keys(schema).forEach(function applyDefault (key) {
-        var defaultValue = schema[key].default;
-        if (data[key] !== undefined) { return; }
-        data[key] = defaultValue && defaultValue.constructor === Object
-          ? utils.extend({}, defaultValue)
+      // Clone previous data to prevent sharing references with attrValue that might be
+      // modified by the user.
+      data = typeof previousData === 'object' ? cloneData(previousData) : {};
+
+      // Apply defaults.
+      for (i = 0, keys = Object.keys(schema), keysLength = keys.length; i < keysLength; i++) {
+        defaultValue = schema[keys[i]].default;
+        if (data[keys[i]] !== undefined) { continue; }
+        // Clone default value if object so components don't share object
+        data[keys[i]] = defaultValue && defaultValue.constructor === Object
+          ? utils.clone(defaultValue)
           : defaultValue;
-      });
+      }
     }
 
     // 2. Mixin values.
-    mixinEls.forEach(function handleMixinUpdate (mixinEl) {
-      var mixinData = mixinEl.getAttribute(self.attrName);
+    for (i = 0; i < mixinEls.length; i++) {
+      mixinData = mixinEls[i].getAttribute(this.attrName);
       if (mixinData) {
         data = extendProperties(data, mixinData, isSinglePropSchema);
       }
-    });
+    }
 
     // 3. Attribute values (highest precendence).
     if (componentDefined) {
@@ -472,6 +471,26 @@ module.exports.registerComponent = function (name, definition) {
 };
 
 /**
+* Clone component data.
+* Clone only the properties that are plain objects while keeping a reference for the rest.
+*
+* @param data - Component data to clone.
+* @returns Cloned data.
+*/
+function cloneData (data) {
+  var clone = {};
+  var parsedProperty;
+  var key;
+  for (key in data) {
+    parsedProperty = data[key];
+    clone[key] = parsedProperty && parsedProperty.constructor === Object
+      ? utils.clone(parsedProperty)
+      : parsedProperty;
+  }
+  return clone;
+}
+
+/**
 * Object extending with checking for single-property schema.
 *
 * @param dest - Destination object or value.
@@ -480,7 +499,7 @@ module.exports.registerComponent = function (name, definition) {
 * @returns Overridden object or value.
 */
 function extendProperties (dest, source, isSinglePropSchema) {
-  if (isSinglePropSchema) { return source; }
+  if (isSinglePropSchema && (source === null || typeof source !== 'object')) { return source; }
   return utils.extend(dest, source);
 }
 

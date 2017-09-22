@@ -1,3 +1,4 @@
+/* global THREE */
 var registerComponent = require('../core/component').registerComponent;
 var utils = require('../utils/');
 
@@ -16,6 +17,11 @@ var STATES = {
   FUSING: 'cursor-fusing',
   HOVERING: 'cursor-hovering',
   HOVERED: 'cursor-hovered'
+};
+
+var CANVAS_EVENTS = {
+  DOWN: ['mousedown', 'touchstart'],
+  UP: ['mouseup', 'touchend']
 };
 
 /**
@@ -37,20 +43,35 @@ module.exports.Component = registerComponent('cursor', {
     downEvents: {default: []},
     fuse: {default: utils.device.isMobile()},
     fuseTimeout: {default: 1500, min: 0},
-    upEvents: {default: []}
+    upEvents: {default: []},
+    rayOrigin: {default: 'entity', oneOf: ['mouse', 'entity']}
   },
 
   init: function () {
+    var self = this;
+
     this.fuseTimeout = undefined;
     this.cursorDownEl = null;
     this.intersection = null;
     this.intersectedEl = null;
+    this.canvasBounds = document.body.getBoundingClientRect();
+
+    // Debounce.
+    this.updateCanvasBounds = utils.debounce(function updateCanvasBounds () {
+      self.canvasBounds = self.el.sceneEl.canvas.getBoundingClientRect();
+    }, 200);
 
     // Bind methods.
     this.onCursorDown = bind(this.onCursorDown, this);
     this.onCursorUp = bind(this.onCursorUp, this);
     this.onIntersection = bind(this.onIntersection, this);
     this.onIntersectionCleared = bind(this.onIntersectionCleared, this);
+    this.onMouseMove = bind(this.onMouseMove, this);
+  },
+
+  update: function (oldData) {
+    if (this.data.rayOrigin === oldData.rayOrigin) { return; }
+    this.updateMouseEventListeners();
   },
 
   play: function () {
@@ -76,16 +97,21 @@ module.exports.Component = registerComponent('cursor', {
     var el = this.el;
     var self = this;
 
+    function addCanvasListeners () {
+      canvas = el.sceneEl.canvas;
+      CANVAS_EVENTS.DOWN.forEach(function (downEvent) {
+        canvas.addEventListener(downEvent, self.onCursorDown);
+      });
+      CANVAS_EVENTS.UP.forEach(function (upEvent) {
+        canvas.addEventListener(upEvent, self.onCursorUp);
+      });
+    }
+
     canvas = el.sceneEl.canvas;
     if (canvas) {
-      canvas.addEventListener('mousedown', this.onCursorDown);
-      canvas.addEventListener('mouseup', this.onCursorUp);
+      addCanvasListeners();
     } else {
-      el.sceneEl.addEventListener('render-target-loaded', function () {
-        canvas = el.sceneEl.canvas;
-        canvas.addEventListener('mousedown', self.onCursorDown);
-        canvas.addEventListener('mouseup', self.onCursorUp);
-      });
+      el.sceneEl.addEventListener('render-target-loaded', addCanvasListeners);
     }
 
     data.downEvents.forEach(function (downEvent) {
@@ -96,6 +122,8 @@ module.exports.Component = registerComponent('cursor', {
     });
     el.addEventListener('raycaster-intersection', this.onIntersection);
     el.addEventListener('raycaster-intersection-cleared', this.onIntersectionCleared);
+
+    window.addEventListener('resize', this.updateCanvasBounds);
   },
 
   removeEventListeners: function () {
@@ -106,8 +134,12 @@ module.exports.Component = registerComponent('cursor', {
 
     canvas = el.sceneEl.canvas;
     if (canvas) {
-      canvas.removeEventListener('mousedown', this.onCursorDown);
-      canvas.removeEventListener('mouseup', this.onCursorUp);
+      CANVAS_EVENTS.DOWN.forEach(function (downEvent) {
+        canvas.removeEventListener(downEvent, self.onCursorDown);
+      });
+      CANVAS_EVENTS.UP.forEach(function (upEvent) {
+        canvas.removeEventListener(upEvent, self.onCursorUp);
+      });
     }
 
     data.downEvents.forEach(function (downEvent) {
@@ -118,7 +150,45 @@ module.exports.Component = registerComponent('cursor', {
     });
     el.removeEventListener('raycaster-intersection', this.onIntersection);
     el.removeEventListener('raycaster-intersection-cleared', this.onIntersectionCleared);
+    window.removeEventListener('mousemove', this.onMouseMove);
+    window.removeEventListener('resize', this.updateCanvasBounds);
   },
+
+  updateMouseEventListeners: function () {
+    var el = this.el;
+    window.removeEventListener('mousemove', this.onMouseMove);
+    el.setAttribute('raycaster', 'useWorldCoordinates', false);
+    if (this.data.rayOrigin !== 'mouse') { return; }
+    window.addEventListener('mousemove', this.onMouseMove, false);
+    el.setAttribute('raycaster', 'useWorldCoordinates', true);
+    this.updateCanvasBounds();
+  },
+
+  onMouseMove: (function () {
+    var mouse = new THREE.Vector2();
+    var origin = new THREE.Vector3();
+    var direction = new THREE.Vector3();
+    var rayCasterConfig = {
+      origin: origin,
+      direction: direction
+    };
+    return function (evt) {
+      var camera = this.el.sceneEl.camera;
+      camera.parent.updateMatrixWorld();
+      camera.updateMatrixWorld();
+
+      // Calculate mouse position based on the canvas element
+      var bounds = this.canvasBounds;
+      var left = evt.clientX - bounds.left;
+      var top = evt.clientY - bounds.top;
+      mouse.x = (left / bounds.width) * 2 - 1;
+      mouse.y = -(top / bounds.height) * 2 + 1;
+
+      origin.setFromMatrixPosition(camera.matrixWorld);
+      direction.set(mouse.x, mouse.y, 0.5).unproject(camera).sub(origin).normalize();
+      this.el.setAttribute('raycaster', rayCasterConfig);
+    };
+  })(),
 
   /**
    * Trigger mousedown and keep track of the mousedowned entity.

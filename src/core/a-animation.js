@@ -3,7 +3,7 @@ var animationConstants = require('../constants/animation');
 var coordinates = require('../utils/').coordinates;
 var parseProperty = require('./schema').parseProperty;
 var registerElement = require('./a-register-element').registerElement;
-var TWEEN = require('tween.js');
+var TWEEN = require('@tweenjs/tween.js');
 var THREE = require('../lib/three');
 var utils = require('../utils/');
 var bind = utils.bind;
@@ -462,7 +462,7 @@ function getAnimationValues (el, attribute, dataFrom, dataTo, currentValue) {
    *   Then converts to hex for the setAttribute
    */
   function getForColorComponent () {
-    from = new THREE.Color(dataFrom);
+    from = new THREE.Color(dataFrom || el.getAttribute(attribute));
     to = new THREE.Color(dataTo);
     partialSetAttribute = function (value) {
       if (attributeSplit.length > 1) {

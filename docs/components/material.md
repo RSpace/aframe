@@ -3,6 +3,8 @@ title: material
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/material.js
+examples: []
 ---
 
 [fog]: ./fog.md
@@ -46,18 +48,20 @@ Here is an example of using an example custom material:
 The material component has some base properties. More properties are available
 depending on the material type applied.
 
-| Property    | Description                                                                                                                                       | Default Value |
-|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| depthTest   | Whether depth testing is enabled when rendering the material.                                                                                     | true          |
-| flatShading | Use `THREE.FlatShading` rather than `THREE.StandardShading`.                                                                                      | false          |
-| opacity     | Extent of transparency. If the `transparent` property is not `true`, then the material will remain opaque and `opacity` will only affect color.   | 1.0           |
-| transparent | Whether material is transparent. Transparent entities are rendered after non-transparent entities.                                                | false         |
-| shader      | Which material to use. Defaults to the [standard material][standard]. Can be set to the [flat material][flat] or to a registered custom material. | standard      |
-| side        | Which sides of the mesh to render. Can be one of `front`, `back`, or `double`.                                                                    | front         |
-| visible | Whether material is visible. Raycasters will ignore invisible materials. | true |
-| offset | Texture offset to be used. | {x: 0, y: 0} |
-| repeat | Texture repeat to be used. | {x: 1, y: 1} |
-| npot | Use settings for non-power-of-two (NPOT) texture. | false |
+| Property     | Description                                                                                                                                       | Default Value |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| alphaTest    | Alpha test threshold for transparency.                                                                                                            | 0             |
+| depthTest    | Whether depth testing is enabled when rendering the material.                                                                                     | true          |
+| flatShading  | Use `THREE.FlatShading` rather than `THREE.StandardShading`.                                                                                      | false         |
+| npot         | Use settings for non-power-of-two (NPOT) texture.                                                                                                 | false         |
+| offset       | Texture offset to be used.                                                                                                                        | {x: 0, y: 0}  |
+| opacity      | Extent of transparency. If the `transparent` property is not `true`, then the material will remain opaque and `opacity` will only affect color.   | 1.0           |
+| repeat       | Texture repeat to be used.                                                                                                                        | {x: 1, y: 1}  |
+| shader       | Which material to use. Defaults to the [standard material][standard]. Can be set to the [flat material][flat] or to a registered custom material. | standard      |
+| side         | Which sides of the mesh to render. Can be one of `front`, `back`, or `double`.                                                                    | front         |
+| transparent  | Whether material is transparent. Transparent entities are rendered after non-transparent entities.                                                | false         |
+| vertexColors | Whether to use vertex or face colors to shade the material. Can be one of `none`, `vertex`, or `face`.                                            | none          |
+| visible      | Whether material is visible. Raycasters will ignore invisible materials.                                                                          | true          |
 
 ## Events
 
@@ -84,21 +88,23 @@ These properties are available on top of the base material properties.
 
 | Property                      | Description                                                                                                                                     | Default Value |
 |-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| ambientOcclusionMap           | Ambient occlusion map. Used to add shadows to the mesh. Can either be a selector to an `<img>` an inline URL.                                   | None          |
+| ambientOcclusionMap           | Ambient occlusion map. Used to add shadows to the mesh. Can either be a selector to an `<img>`, or an inline URL. Requires 2nd set of UVs (see below). | None          |
 | ambientOcclusionMapIntensity  | The intensity of the ambient occlusion map, a number between 0 and 1.                                                                           | 1             |
 | ambientOcclusionTextureRepeat | How many times the ambient occlusion texture repeats in the X and Y direction.                                                                  | 1 1           |
 | ambientOcclusionTextureOffset | How the ambient occlusion texture is offset in the x y direction.                                                                               | 0 0           |
 | color                         | Base diffuse color.                                                                                                                             | #fff          |
-| displacementMap               | Displacement map. Used to distort a mesh. Can either be a selector to an `<img>` an inline URL.                                                 | None          |
+| displacementMap               | Displacement map. Used to distort a mesh. Can either be a selector to an `<img>`, or an inline URL.                                             | None          |
 | displacementScale             | The intensity of the displacement map effect                                                                                                    | 1             |
 | displacementBias              | The zero point of the displacement map.                                                                                                         | 0.5           |
 | displacementTextureRepeat     | How many times the displacement texture repeats in the X and Y direction.                                                                       | 1 1           |
 | displacementTextureOffset     | How the displacement texture is offset in the x y direction.                                                                                    | 0 0           |
+| emissive                      | The color of the emissive lighting component. Used to make objects produce light even without other lighting in the scene.                      | #000          |
+| emissiveIntensity             | Intensity of the emissive lighting component.                                                                                                   | 1             |
 | height                        | Height of video (in pixels), if defining a video texture.                                                                                       | 360           |
 | envMap                        | Environment cubemap texture for reflections. Can be a selector to <a-cubemap> or a comma-separated list of URLs.                                | None          |
 | fog                           | Whether or not material is affected by [fog][fog].                                                                                              | true          |
 | metalness                     | How metallic the material is from `0` to `1`.                                                                                                   | 0.5           |
-| normalMap                     | Normal map. Used to add the illusion of complex detail. Can either be a selector to an `<img>` an inline URL.                                   | None          |
+| normalMap                     | Normal map. Used to add the illusion of complex detail. Can either be a selector to an `<img>`, or an inline URL.                               | None          |
 | normalScale                   | Scale of the effect of the normal map in the X and Y directions.                                                                                | 1 1           |
 | normalTextureRepeat           | How many times the normal texture repeats in the X and Y direction.                                                                             | 1 1           |
 | normalTextureOffset           | How the normal texture is offset in the x y direction.                                                                                          | 0 0           |
@@ -133,7 +139,10 @@ For example, for a tree bark material, as an estimation, we might set:
 
 There are three properties which give the illusion of complex geometry:
 
-- **Ambient occlusion maps** - Applies a texture to the image which add shadows.
+- **Ambient occlusion maps** - Applies subtle shadows in areas that receive less
+  ambient light. Direct (point, directional) lights do not affect ambient occlusion
+  maps. Baked ambient occlusion requires a 2nd set of UVs, which may be added to
+  the mesh in modeling software or using JavaScript.
 - **Displacement maps** - Distorts a simpler model at a high resolution
   allowing more detail. This will affect the mesh's silhouette but can be
   expensive.
@@ -429,7 +438,7 @@ AFRAME.registerComponent('material-grid-glitch', {
    */
   init: function () {
     const data = this.data;
-  
+
     this.material  = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0.0 },
@@ -450,7 +459,7 @@ AFRAME.registerComponent('material-grid-glitch', {
   update: function () {
     this.material.uniforms.color.value.set(this.data.color);
   },
-    
+
   /**
    * Apply the material to the current entity.
    */
@@ -467,7 +476,7 @@ AFRAME.registerComponent('material-grid-glitch', {
   tick: function (t) {
     this.material.uniforms.time.value = t / 1000;
   }
-  
+
 })
 ```
 
@@ -497,7 +506,7 @@ void main() {
   //    (a) Dynamic color where 'R' and 'B' channels come
   //        from a modulus of the UV coordinates.
   //    (b) Base color.
-  // 
+  //
   // The color itself is a vec4 containing RGBA values 0-1.
   gl_FragColor = mix(
     vec4(mod(vUv , 0.05) * 20.0, 1.0, 1.0),

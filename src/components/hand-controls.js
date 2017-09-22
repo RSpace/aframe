@@ -30,7 +30,9 @@ EVENTS[ANIMATIONS.point] = 'pointing';
 EVENTS[ANIMATIONS.thumb] = 'thumb';
 
 /**
- * Hand controls component that abstracts 6DoF controls: oculus-touch-controls, vive-controls.
+ * Hand controls component that abstracts 6DoF controls:
+ *   oculus-touch-controls, vive-controls, windows-motion-controls.
+ *
  * Originally meant to be a sample implementation of applications-specific controls that
  * abstracts multiple types of controllers.
  *
@@ -47,11 +49,14 @@ module.exports.Component = registerComponent('hand-controls', {
 
   init: function () {
     var self = this;
+    var el = this.el;
     // Current pose.
     this.gesture = ANIMATIONS.open;
-    // Active buttons populated by events provided by oculus-touch-controls and vive-controls.
+    // Active buttons populated by events provided by the attached controls.
     this.pressedButtons = {};
     this.touchedButtons = {};
+    this.loader = new THREE.ObjectLoader();
+    this.loader.setCrossOrigin('anonymous');
 
     this.onGripDown = function () { self.handleButton('grip', 'down'); };
     this.onGripUp = function () { self.handleButton('grip', 'up'); };
@@ -73,6 +78,11 @@ module.exports.Component = registerComponent('hand-controls', {
     this.onBorYTouchEnd = function () { self.handleButton('BorY', 'touchend'); };
     this.onSurfaceTouchStart = function () { self.handleButton('surface', 'touchstart'); };
     this.onSurfaceTouchEnd = function () { self.handleButton('surface', 'touchend'); };
+    this.onControllerConnected = function () { self.setModelVisibility(true); };
+    this.onControllerDisconnected = function () { self.setModelVisibility(false); };
+
+    el.addEventListener('controllerconnected', this.onControllerConnected);
+    el.addEventListener('controllerdisconnected', this.onControllerDisconnected);
   },
 
   play: function () {
@@ -81,6 +91,14 @@ module.exports.Component = registerComponent('hand-controls', {
 
   pause: function () {
     this.removeEventListeners();
+  },
+
+  tick: function (time, delta) {
+    var mesh = this.el.getObject3D('mesh');
+
+    if (!mesh || !mesh.mixer) { return; }
+
+    mesh.mixer.update(delta / 1000);
   },
 
   addEventListeners: function () {
@@ -143,22 +161,38 @@ module.exports.Component = registerComponent('hand-controls', {
    * Update handler. More like the `init` handler since the only property is the hand, and
    * that won't be changing much.
    */
-  update: function () {
+  update: function (previousHand) {
     var controlConfiguration;
     var el = this.el;
     var hand = this.data;
 
-    // Get common configuration to abstract Vive and Oculus.
+    // Get common configuration to abstract different vendor controls.
     controlConfiguration = {
       hand: hand,
       model: false,
       rotationOffset: hand === 'left' ? 90 : -90
     };
-    el.setAttribute('vive-controls', controlConfiguration);
-    el.setAttribute('oculus-touch-controls', controlConfiguration);
 
     // Set model.
-    el.setAttribute('blend-character-model', MODEL_URLS[hand]);
+    if (hand !== previousHand) {
+      this.loader.load(MODEL_URLS[hand], function (scene) {
+        var mesh = scene.getObjectByName('Hand');
+        mesh.material.skinning = true;
+        mesh.mixer = new THREE.AnimationMixer(mesh);
+        el.setObject3D('mesh', mesh);
+        mesh.position.set(0, 0, 0);
+        mesh.rotation.set(0, 0, 0);
+        // hidden by default
+        mesh.visible = false;
+        el.setAttribute('vive-controls', controlConfiguration);
+        el.setAttribute('oculus-touch-controls', controlConfiguration);
+        el.setAttribute('windows-motion-controls', controlConfiguration);
+      });
+    }
+  },
+
+  remove: function () {
+    this.el.removeObject3D('mesh');
   },
 
   /**
@@ -212,22 +246,22 @@ module.exports.Component = registerComponent('hand-controls', {
     var isTrackpadActive = this.pressedButtons['trackpad'] || this.touchedButtons['trackpad'];
     var isTriggerActive = this.pressedButtons['trigger'] || this.touchedButtons['trigger'];
     var isABXYActive = this.touchedButtons['AorX'] || this.touchedButtons['BorY'];
-    var isOculusTouch = isOculusTouchController(this.el.components['tracked-controls']);
+    var isVive = isViveController(this.el.components['tracked-controls']);
 
-    // Works well with Oculus Touch but Vive needs tweaks.
+    // Works well with Oculus Touch and Windows Motion Controls, but Vive needs tweaks.
     if (isGripActive) {
-      if (!isOculusTouch) {
+      if (isVive) {
         gesture = ANIMATIONS.fist;
       } else
-      if (isSurfaceActive || isABXYActive || isTrackpadActive) {
-        gesture = isTriggerActive ? ANIMATIONS.fist : ANIMATIONS.point;
-      } else {
-        gesture = isTriggerActive ? ANIMATIONS.thumbUp : ANIMATIONS.pointThumb;
-      }
+        if (isSurfaceActive || isABXYActive || isTrackpadActive) {
+          gesture = isTriggerActive ? ANIMATIONS.fist : ANIMATIONS.point;
+        } else {
+          gesture = isTriggerActive ? ANIMATIONS.thumbUp : ANIMATIONS.pointThumb;
+        }
     } else {
       if (isTriggerActive) {
-        gesture = isOculusTouch ? ANIMATIONS.hold : ANIMATIONS.fist;
-      } else if (!isOculusTouch && isTrackpadActive) {
+        gesture = !isVive ? ANIMATIONS.hold : ANIMATIONS.fist;
+      } else if (isVive && isTrackpadActive) {
         gesture = ANIMATIONS.point;
       }
     }
@@ -288,23 +322,31 @@ module.exports.Component = registerComponent('hand-controls', {
     toAction.loop = THREE.PingPong;
     toAction.repetitions = 0;
     toAction.timeScale = reverse ? -1 : 1;
+    toAction.weight = 1;
 
     // No gesture to gesture or gesture to no gesture.
     if (!lastGesture || gesture === lastGesture) {
       // Stop all current animations.
-      mesh.stopAll();
+      mesh.mixer.stopAllAction();
 
       // Play animation.
-      mesh.play(gesture, 1);
+      toAction.play();
       return;
     }
 
     // Animate or crossfade from gesture to gesture.
     fromAction = mesh.mixer.clipAction(lastGesture);
     mesh.mixer.stopAllAction();
-    mesh.play(lastGesture, 0.15);
-    mesh.play(gesture, 1);
+    fromAction.weight = 0.15;
+    fromAction.play();
+    toAction.play();
     fromAction.crossFadeTo(toAction, 0.15, true);
+  },
+
+  setModelVisibility: function (visible) {
+    var model = this.el.getObject3D('mesh');
+    if (!model) { return; }
+    model.visible = visible;
   }
 });
 
@@ -332,8 +374,8 @@ function getGestureEventName (gesture, active) {
   return;
 }
 
-function isOculusTouchController (trackedControls) {
+function isViveController (trackedControls) {
   var controllerId = trackedControls && trackedControls.controller &&
                      trackedControls.controller.id;
-  return controllerId && controllerId.indexOf('Oculus Touch') === 0;
+  return controllerId && controllerId.indexOf('OpenVR ') === 0;
 }

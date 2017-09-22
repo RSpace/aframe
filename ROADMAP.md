@@ -6,13 +6,11 @@
 - **Performance:** maintain high framerate with low latency
 - **Ecosystem:** enable discovery and distribution of reusable components
 
-## 0.6.0 (est. May 2017)
+## 0.7.0 (est. Oct 2017)
 
-- Link traversal
-- Shadows
-- Daydream, GearVR controller support
-- Vive tracker support
-
-## 0.7.0 (est. July 2017)
-
-- In-VR content creation tool
+- Vive tracker support (#2582)
+- glTF 2.0 support (#2693)
+- Replace VREffect / VRControls with new three.js WebVR API
+- System API enhancements (e.g., refactor to inherit from component API, entity added and removed handlers)
+- Asset management improvements (e.g., loading screen, duplicate requests in FileLoader)
+- Entity re-parenting

@@ -3,6 +3,8 @@ title: screenshot
 type: components
 layout: docs
 parent_section: components
+source_code: src/components/scene/screenshot.js
+examples: []
 ---
 
 The screenshot component lets us take different types of screenshots with

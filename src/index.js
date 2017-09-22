@@ -63,7 +63,7 @@ var shaders = require('./core/shader').shaders;
 var systems = require('./core/system').systems;
 // Exports THREE to window so three.js can be used without alteration.
 var THREE = window.THREE = require('./lib/three');
-var TWEEN = window.TWEEN = require('tween.js');
+var TWEEN = window.TWEEN = require('@tweenjs/tween.js');
 
 var pkg = require('../package');
 
@@ -83,7 +83,7 @@ require('./core/a-mixin');
 require('./extras/components/');
 require('./extras/primitives/');
 
-console.log('A-Frame Version: 0.6.0 (Date 30-06-2017, Commit #16e18f6)');
+console.log('A-Frame Version: 0.7.0 (Date 21-09-2017, Commit #d3bd3e0)');
 console.log('three Version:', pkg.dependencies['three']);
 console.log('WebVR Polyfill Version:', pkg.dependencies['webvr-polyfill']);
 

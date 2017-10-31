@@ -135,15 +135,14 @@ Now we have a textured plane that plays a click sound when clicked.
 
 ## Using Community Components
 
-[awesome]: https://github.com/aframevr/awesome-aframe#components
+[npm]: https://www.npmjs.com/search?q=aframe-component&page=1&ranking=optimal
 
 A-Frame comes with a small core of standard components, but the magic is in the
 large number of open source community components in the A-Frame ecosystem. We
-can find community components from places such as the [A-Frame
-Registry][registry] or the [awesome-aframe repo][awesome]. We can drop them
-into our scene and use them straight in our HTML. Components can do anything.
-By using components that other people have developed, we gain power without
-needing to write our own code.
+can find community components from places such as [npm][npm] or the [A-Frame
+Registry][registry]. We can drop them into our scene and use them straight in
+our HTML. Components can do anything.  By using components that other people
+have developed, we gain power without needing to write our own code.
 
 We'll go through using three community components:
 
@@ -161,7 +160,7 @@ need to know the component's npm package name and the path:
 <html>
   <head>
     <title>360° Image Browser</title>
-    <script src="https://aframe.io/releases/0.7.0/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/0.7.1/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-template-component@3.x.x/dist/aframe-template-component.min.js"></script>
     <script src="https://unpkg.com/aframe-layout-component@3.x.x/dist/aframe-layout-component.min.js"></script>
     <script src="https://unpkg.com/aframe-event-set-component@3.x.x/dist/aframe-event-set-component.min.js"></script>

@@ -1,7 +1,8 @@
 /* global THREE */
 var bind = require('../utils/bind');
 var registerComponent = require('../core/component').registerComponent;
-var controllerUtils = require('../utils/tracked-controls');
+var trackedControlsUtils = require('../utils/tracked-controls');
+var onButtonEvent = trackedControlsUtils.onButtonEvent;
 var utils = require('../utils/');
 
 var debug = utils.debug('components:windows-motion-controls:debug');
@@ -16,10 +17,10 @@ var GAMEPAD_ID_PREFIX = 'Spatial Controller (Spatial Interaction Source) ';
 var GAMEPAD_ID_PATTERN = /([0-9a-zA-Z]+-[0-9a-zA-Z]+)$/;
 
 /**
- * Windows Motion Controller Controls Component
- * Interfaces with Windows Motion Controller controllers and maps Gamepad events to
- * common controller buttons: trackpad, trigger, grip, menu and system
- * It loads a controller model and transforms the pressed buttons
+ * Windows Motion Controller controls.
+ * Interface with Windows Motion Controller controllers and map Gamepad events to
+ * controller buttons: trackpad, trigger, grip, menu, thumbstick
+ * Load a controller model and transform the pressed buttons.
  */
 module.exports.Component = registerComponent('windows-motion-controls', {
   schema: {
@@ -72,10 +73,10 @@ module.exports.Component = registerComponent('windows-motion-controls', {
     var self = this;
     var el = this.el;
     this.onButtonChanged = bind(this.onButtonChanged, this);
-    this.onButtonDown = function (evt) { self.onButtonEvent(evt, 'down'); };
-    this.onButtonUp = function (evt) { self.onButtonEvent(evt, 'up'); };
-    this.onButtonTouchStart = function (evt) { self.onButtonEvent(evt, 'touchstart'); };
-    this.onButtonTouchEnd = function (evt) { self.onButtonEvent(evt, 'touchend'); };
+    this.onButtonDown = function (evt) { onButtonEvent(evt, 'down', self); };
+    this.onButtonUp = function (evt) { onButtonEvent(evt, 'up', self); };
+    this.onButtonTouchStart = function (evt) { onButtonEvent(evt, 'touchstart', self); };
+    this.onButtonTouchEnd = function (evt) { onButtonEvent(evt, 'touchend', self); };
     this.onControllerConnected = function () { self.setModelVisibility(true); };
     this.onControllerDisconnected = function () { self.setModelVisibility(false); };
     this.controllerPresent = false;
@@ -97,8 +98,8 @@ module.exports.Component = registerComponent('windows-motion-controls', {
     };
 
     // Stored on object to allow for mocking in tests
-    this.emitIfAxesChanged = controllerUtils.emitIfAxesChanged;
-    this.checkControllerPresentAndSetup = controllerUtils.checkControllerPresentAndSetup;
+    this.emitIfAxesChanged = trackedControlsUtils.emitIfAxesChanged;
+    this.checkControllerPresentAndSetup = trackedControlsUtils.checkControllerPresentAndSetup;
 
     el.addEventListener('controllerconnected', this.onControllerConnected);
     el.addEventListener('controllerdisconnected', this.onControllerDisconnected);
@@ -419,16 +420,6 @@ module.exports.Component = registerComponent('windows-motion-controls', {
 
       // Only emit events for buttons that we know how to map from index to name
       this.el.emit(buttonName + 'changed', evt.detail.state);
-    }
-  },
-
-  onButtonEvent: function (evt, evtName) {
-    var buttonName = this.mapping.buttons[evt.detail.id];
-    debug('onButtonEvent(' + evt.detail.id + ', ' + evtName + ')');
-
-    if (buttonName) {
-      // Only emit events for buttons that we know how to map from index to name
-      this.el.emit(buttonName + evtName);
     }
   },
 

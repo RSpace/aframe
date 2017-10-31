@@ -23,7 +23,7 @@ The cursor component listens to events and keeps state on what's being hovered
 and pressed in order to provide `mousedown`, `mouseup`, `mouseenter`,
 `mouseleave`, and `click` events. We use the name `mouse` to mimic
 traditional web development for now. Under the hood, the cursor component uses
-the `raycaster-intersected` and `raycaster-intersection-cleared` events,
+the `raycaster-intersection` and `raycaster-intersection-cleared` events,
 capturing the closest visible intersected entity.
 
 By default, the cursor is configured to be used in a gaze-based mode and will
@@ -101,6 +101,18 @@ component, [the raycaster component][raycaster].
 | mouseenter    | Emitted on both cursor and intersected entity (if any) when cursor intersects with an entity.                               |
 | mouseleave    | Emitted on both cursor and intersected entity (if any) when cursor no longer intersects with previously intersected entity. |
 | mouseup       | Emitted on both cursor and intersected entity (if any) on mouseup on the canvas element.                                    |
+
+### Intersection Data
+
+Relevant events will contain in the event detail `intersection`, which will
+contain `{distance, point, face, faceIndex, indices, object}` about specific
+data about the intersection:
+
+```js
+this.el.addEventListener('click', function (evt) {
+  console.log(evt.detail.intersection.point);
+});
+```
 
 ## States
 

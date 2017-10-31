@@ -1,7 +1,9 @@
 var registerComponent = require('../core/component').registerComponent;
 var bind = require('../utils/bind');
 var checkControllerPresentAndSetup = require('../utils/tracked-controls').checkControllerPresentAndSetup;
-var emitIfAxesChanged = require('../utils/tracked-controls').emitIfAxesChanged;
+var trackedControlsUtils = require('../utils/tracked-controls');
+var emitIfAxesChanged = trackedControlsUtils.emitIfAxesChanged;
+var onButtonEvent = trackedControlsUtils.onButtonEvent;
 
 var DAYDREAM_CONTROLLER_MODEL_BASE_URL = 'https://cdn.aframe.io/controllers/google/';
 var DAYDREAM_CONTROLLER_MODEL_OBJ_URL = DAYDREAM_CONTROLLER_MODEL_BASE_URL + 'vr_controller_daydream.obj';
@@ -11,23 +13,27 @@ var GAMEPAD_ID_PREFIX = 'Daydream Controller';
 
 /**
  * Daydream controls.
+ * Interface with Daydream controller and map Gamepad events to
+ * controller buttons: trackpad, menu, system
+ * Load a controller model and highlight the pressed buttons.
  */
 module.exports.Component = registerComponent('daydream-controls', {
   schema: {
-    hand: {default: ''},  // Informs the degenerate arm model.
+    hand: {default: ''},  // This informs the degenerate arm model.
     buttonColor: {type: 'color', default: '#000000'},
     buttonTouchedColor: {type: 'color', default: '#777777'},
     buttonHighlightColor: {type: 'color', default: '#FFFFFF'},
     model: {default: true},
-    // Use -999 as sentinel value to auto-determine based on hand.
     rotationOffset: {default: 0},
     armModel: {default: true}
   },
 
-  // buttonId
-  // 0 - trackpad
-  // 1 - menu (never dispatched on this layer)
-  // 2 - system (never dispatched on this layer)
+  /**
+   * Button IDs:
+   * 0 - trackpad
+   * 1 - menu (never dispatched on this layer)
+   * 2 - system (never dispatched on this layer)
+   */
   mapping: {
     axes: {trackpad: [0, 1]},
     buttons: ['trackpad', 'menu', 'system']
@@ -39,20 +45,18 @@ module.exports.Component = registerComponent('daydream-controls', {
     this.checkIfControllerPresent = bind(this.checkIfControllerPresent, this);
     this.removeControllersUpdateListener = bind(this.removeControllersUpdateListener, this);
     this.onAxisMoved = bind(this.onAxisMoved, this);
-    this.onGamepadConnectionEvent = bind(this.onGamepadConnectionEvent, this);
   },
 
   init: function () {
     var self = this;
     this.animationActive = 'pointing';
     this.onButtonChanged = bind(this.onButtonChanged, this);
-    this.onButtonDown = function (evt) { self.onButtonEvent(evt.detail.id, 'down'); };
-    this.onButtonUp = function (evt) { self.onButtonEvent(evt.detail.id, 'up'); };
-    this.onButtonTouchStart = function (evt) { self.onButtonEvent(evt.detail.id, 'touchstart'); };
-    this.onButtonTouchEnd = function (evt) { self.onButtonEvent(evt.detail.id, 'touchend'); };
+    this.onButtonDown = function (evt) { onButtonEvent(evt.detail.id, 'down', self); };
+    this.onButtonUp = function (evt) { onButtonEvent(evt.detail.id, 'up', self); };
+    this.onButtonTouchStart = function (evt) { onButtonEvent(evt.detail.id, 'touchstart', self); };
+    this.onButtonTouchEnd = function (evt) { onButtonEvent(evt.detail.id, 'touchend', self); };
     this.onAxisMoved = bind(this.onAxisMoved, this);
     this.controllerPresent = false;
-    this.everGotGamepadEvent = false;
     this.lastControllerCheck = 0;
     this.bindMethods();
     this.checkControllerPresentAndSetup = checkControllerPresentAndSetup;  // To allow mock.
@@ -87,27 +91,14 @@ module.exports.Component = registerComponent('daydream-controls', {
     this.checkControllerPresentAndSetup(this, GAMEPAD_ID_PREFIX, {hand: this.data.hand});
   },
 
-  onGamepadConnectionEvent: function (evt) {
-    this.everGotGamepadEvent = true;
-    // Due to an apparent bug in FF Nightly
-    // where only one gamepadconnected / disconnected event is fired,
-    // which makes it difficult to handle in individual controller entities,
-    // we no longer remove the controllersupdate listener as a result.
-    this.checkIfControllerPresent();
-  },
-
   play: function () {
     this.checkIfControllerPresent();
     this.addControllersUpdateListener();
-    window.addEventListener('gamepadconnected', this.onGamepadConnectionEvent, false);
-    window.addEventListener('gamepaddisconnected', this.onGamepadConnectionEvent, false);
   },
 
   pause: function () {
     this.removeEventListeners();
     this.removeControllersUpdateListener();
-    window.removeEventListener('gamepadconnected', this.onGamepadConnectionEvent, false);
-    window.removeEventListener('gamepaddisconnected', this.onGamepadConnectionEvent, false);
   },
 
   injectTrackedControls: function () {
@@ -135,7 +126,7 @@ module.exports.Component = registerComponent('daydream-controls', {
   },
 
   onControllersUpdate: function () {
-    if (!this.everGotGamepadEvent) { this.checkIfControllerPresent(); }
+    this.checkIfControllerPresent();
   },
 
   onModelLoaded: function (evt) {
@@ -161,29 +152,9 @@ module.exports.Component = registerComponent('daydream-controls', {
     this.el.emit(button + 'changed', evt.detail.state);
   },
 
-  onButtonEvent: function (id, evtName) {
-    var buttonName = this.mapping.buttons[id];
-    var i;
-    if (Array.isArray(buttonName)) {
-      for (i = 0; i < buttonName.length; i++) {
-        this.el.emit(buttonName[i] + evtName);
-      }
-    } else {
-      this.el.emit(buttonName + evtName);
-    }
-    this.updateModel(buttonName, evtName);
-  },
-
   updateModel: function (buttonName, evtName) {
-    var i;
     if (!this.data.model) { return; }
-    if (Array.isArray(buttonName)) {
-      for (i = 0; i < buttonName.length; i++) {
-        this.updateButtonModel(buttonName[i], evtName);
-      }
-    } else {
-      this.updateButtonModel(buttonName, evtName);
-    }
+    this.updateButtonModel(buttonName, evtName);
   },
 
   updateButtonModel: function (buttonName, state) {

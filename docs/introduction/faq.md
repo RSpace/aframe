@@ -6,7 +6,6 @@ parent_section: introduction
 order: 12
 ---
 
-[awesome]: https://github.com/aframevr/awesome-aframe/
 [ecs]: ./entity-component-system.md
 [github]: http://github.com/aframevr/aframe/
 [three]: http://threejs.org
@@ -210,7 +209,7 @@ to serve, but that is against their terms of service.
 Browsers provide the ability to go from WebVR page to WebVR page via the
 `vrdisplayactivate` event described in the WebVR specification. Currently, not
 all browsers implement this. Firefox with WebVR implements this. A link
-component for link traversal was released with A-Frame 0.7.0:
+component for link traversal was released with A-Frame 0.6.0:
 
 ```html
 <a-entity link="on: click; href: https://aframe-aincraft.glitch.me"></a-entity>
@@ -276,12 +275,11 @@ Read [*Where to Find Components*][finding] for more information.
 A-Frame is built on top of the DOM so most libraries and frameworks work
 including:
 
-- [React](https://github.com/aframevr/aframe-react)
+- [Vue.js](https://github.com/frederic-schwarz/aframe-vuejs-3dio)
 - [Preact](https://github.com/aframevr/aframe-react#using-with-preact)
 - [D3.js](http://blockbuilder.org/search#text=aframe)
-- [Angular](https://github.com/brakmic/Angular-VR-Starter)
-- Redux
-- Vue.js
+- [React](https://github.com/aframevr/aframe-react)
+- [Angular](https://stackoverflow.com/questions/46464103/various-errors-when-attempting-to-integrate-aframe-into-angular2-project-esp-wi)
 - jQuery
 - Ember.js
 - Meteor

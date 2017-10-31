@@ -121,7 +121,7 @@ VR headsets that A-Frame supports include:
 For general hardware recommendations (not requirements):
 
 - [Oculus Rift Hardware Recommendations](https://www.oculus.com/en-us/oculus-ready-pcs/)
-- [HTC Vive Hardware Recommendedations](https://www.vive.com/us/ready/)
+- [HTC Vive Hardware Recommendations](https://www.vive.com/us/ready/)
 - For smartphones, an iPhone 6 for iOS and at least a Galaxy S6 for Android
 
 ## Which Browsers Does A-Frame Support?
@@ -134,7 +134,7 @@ specification][w3c]:
 - [Firefox 55+ for Windows](https://www.mozilla.org/en-US/firefox/desktop/)
 - [Experimental builds of Chromium](https://webvr.info/get-chrome/)
 - Chrome for Android (Daydream)
-- Oculus Carmel (GearVR)
+- Oculus Browser (GearVR)
 - Samsung Internet (GearVR)
 - Microsoft Edge
 

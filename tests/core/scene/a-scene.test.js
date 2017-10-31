@@ -1,6 +1,4 @@
 /* global AFRAME, assert, CustomEvent, process, sinon, setup, suite, teardown, test */
-var AEntity = require('core/a-entity');
-var ANode = require('core/a-node');
 var AScene = require('core/scene/a-scene').AScene;
 var components = require('core/component').components;
 var scenes = require('core/scene/scenes');
@@ -366,25 +364,55 @@ suite('a-scene (without renderer)', function () {
     });
   });
 
-  suite('reload', function () {
-    test('reload scene innerHTML to original value', function () {
-      var canvasEl;
-      var sceneEl = this.el;
-      sceneEl.innerHTML = 'NEW';
-      sceneEl.reload();
-      assert.equal(sceneEl.children.length, 1);
-      canvasEl = sceneEl.querySelector('canvas');
-      assert.equal(canvasEl.getAttribute('class'), 'a-canvas');
-      assert.equal(canvasEl.getAttribute('data-aframe-canvas'), 'true');
+  suite('resize', function () {
+    var sceneEl;
+    var setSizeSpy;
+
+    setup(function () {
+      sceneEl = this.el;
+      AScene.prototype.resize.restore();
+      sceneEl.camera = { updateProjectionMatrix: function () {} };
+      sceneEl.canvas = document.createElement('canvas');
+      sceneEl.renderer = { setSize: function () {} };
+
+      setSizeSpy = this.sinon.spy(sceneEl.renderer, 'setSize');
     });
 
-    test('reloads the scene and pauses', function () {
-      var sceneEl = this.el;
-      this.sinon.spy(AEntity.prototype, 'pause');
-      this.sinon.spy(ANode.prototype, 'load');
-      sceneEl.reload(true);
-      sinon.assert.called(AEntity.prototype.pause);
-      sinon.assert.called(ANode.prototype.load);
+    test('resize renderer when not in vr mode', function () {
+      sceneEl.resize();
+
+      assert.ok(setSizeSpy.called);
+    });
+
+    test('resize renderer when in vr mode in fullscreen presentation (desktop, no headset)', function () {
+      sceneEl.effect = {
+        isPresenting: false
+      };
+      sceneEl.addState('vr-mode');
+
+      sceneEl.resize();
+
+      assert.ok(setSizeSpy.called);
+    });
+
+    test('does not resize renderer when in vr mode on mobile', function () {
+      sceneEl.isMobile = true;
+      sceneEl.addState('vr-mode');
+
+      sceneEl.resize();
+
+      assert.notOk(setSizeSpy.called);
+    });
+
+    test('does not resize renderer when in vr mode and presenting in a headset', function () {
+      sceneEl.effect = {
+        isPresenting: true
+      };
+      sceneEl.addState('vr-mode');
+
+      sceneEl.resize();
+
+      assert.notOk(setSizeSpy.called);
     });
   });
 

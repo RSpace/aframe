@@ -673,13 +673,19 @@ function exitFullscreen () {
  * @returns {bool}
  */
 function shouldAntiAlias (sceneEl) {
+  // React first initializes custom elements without attributes, and then add
+  // attributes. That doesn't work with <a-scene>, which initializes the render
+  // where the antialias setting is set immediately and with no way to update
+  // the setting later. So for now, hardcoded here - ugh :(
+  return true;
+
   // Explicitly set.
-  if (sceneEl.getAttribute('antialias') !== null) {
-    return sceneEl.getAttribute('antialias') === 'true';
-  }
+  // if (sceneEl.getAttribute('antialias') !== null) {
+  //   return sceneEl.getAttribute('antialias') === 'true';
+  // }
 
   // Default not AA for mobile.
-  return !sceneEl.isMobile;
+  // return !sceneEl.isMobile;
 }
 module.exports.shouldAntiAlias = shouldAntiAlias;  // For testing.
 

@@ -5,6 +5,7 @@
   position: fixed;
   right: 0;
   top: 0;
+  --caca: 0;
 }
 
 /* Applied to the body element */
@@ -46,7 +47,7 @@
   cursor: -webkit-grabbing;
 }
 
-// Class is removed when doing <a-scene embedded>.
+/* Class is removed when doing <a-scene embedded>. */
 a-scene.fullscreen .a-canvas {
   width: 100% !important;
   height: 100% !important;

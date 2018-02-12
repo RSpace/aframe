@@ -7,7 +7,7 @@
     <script src="../../../dist/aframe-master.js"></script>
   </head>
   <body>
-    <a-scene vr-mode-ui="enabled: false">
+    <a-scene vr-mode-ui="enabled: false" background="color: #24CAFF">
       <a-assets>
         <a-asset-item id="tree" src="../../assets/models/tree1/tree1.dae"></a-asset-item>
       </a-assets>
@@ -17,8 +17,7 @@
         <a-animation attribute="position" from="0 5 0" to="0 0 0" dur="4000"
                      easing="ease-out"></a-animation>
         <a-entity position="0 880 1290" rotation="-34 0 0">
-          <a-camera id="camera" near="1000" far="4000" fov="2.2" user-height="0"
-                    wasd-controls-enabled="false" look-controls-enabled="false"></a-camera>
+          <a-camera id="camera" near="1000" far="4000" fov="2.2" wasd-controls-enabled="false" look-controls-enabled="false"></a-camera>
         </a-entity>  
       </a-entity>
 
@@ -136,7 +135,6 @@
         </a-entity>
       </a-entity>
 
-      <a-sky color="#24CAFF" radius="1000"></a-sky>
       <a-light type="directional" color="#FFF" intensity="0.45" position="4 2 1"></a-light>
       <a-light type="ambient" color="#A8A8A8"></a-light>
 

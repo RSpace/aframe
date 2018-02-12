@@ -6,8 +6,6 @@ var utils = require('../utils/');
 
 var warn = utils.debug('components:raycaster:warn');
 
-var dummyVec = new THREE.Vector3();
-
 // Defines selectors that should be 'safe' for the MutationObserver used to
 // refresh the whitelist. Matches classnames, IDs, and presence of attributes.
 // Selectors for the value of an attribute, like [position=0 2 0], cannot be
@@ -40,7 +38,7 @@ module.exports.Component = registerComponent('raycaster', {
     direction: {type: 'vec3', default: {x: 0, y: 0, z: -1}},
     enabled: {default: true},
     far: {default: 1000},
-    interval: {default: 100},
+    interval: {default: 0},
     near: {default: 0},
     objects: {default: ''},
     origin: {type: 'vec3'},
@@ -51,11 +49,12 @@ module.exports.Component = registerComponent('raycaster', {
   },
 
   init: function () {
-    // Calculate unit vector for line direction. Can be multiplied via scalar to performantly
-    // adjust line length.
     this.clearedIntersectedEls = [];
     this.unitLineEndVec3 = new THREE.Vector3();
     this.intersectedEls = [];
+    this.intersections = [];
+    this.newIntersectedEls = [];
+    this.newIntersections = [];
     this.objects = [];
     this.prevCheckTime = undefined;
     this.prevIntersectedEls = [];
@@ -64,10 +63,12 @@ module.exports.Component = registerComponent('raycaster', {
     this.setDirty = this.setDirty.bind(this);
     this.observer = new MutationObserver(this.setDirty);
     this.dirty = true;
-    this.intersectionClearedDetail = {clearedEls: this.clearedIntersectedEls};
     this.lineEndVec3 = new THREE.Vector3();
     this.otherLineEndVec3 = new THREE.Vector3();
     this.lineData = {end: this.lineEndVec3};
+
+    this.intersectedClearedDetail = {el: this.el};
+    this.intersectionClearedDetail = {clearedEls: this.clearedIntersectedEls};
   },
 
   /**
@@ -85,10 +86,13 @@ module.exports.Component = registerComponent('raycaster', {
     // Draw line.
     if (data.showLine &&
         (data.far !== oldData.far || data.origin !== oldData.origin ||
-         data.direction !== oldData.direction || data.showLine !== oldData.showLine)) {
+         data.direction !== oldData.direction || !oldData.showLine)) {
+      // Calculate unit vector for line direction. Can be multiplied via scalar to performantly
+      // adjust line length.
       this.unitLineEndVec3.copy(data.origin).add(data.direction).normalize();
       this.drawLine();
     }
+
     if (!data.showLine && oldData.showLine) {
       el.removeAttribute('line');
     }
@@ -145,97 +149,117 @@ module.exports.Component = registerComponent('raycaster', {
    */
   refreshObjects: function () {
     var data = this.data;
+    var els;
+
     // If objects not defined, intersect with everything.
-    var els = data.objects
+    els = data.objects
       ? this.el.sceneEl.querySelectorAll(data.objects)
       : this.el.sceneEl.children;
-    this.objects = flattenChildrenShallow(els);
+    this.objects = this.flattenChildrenShallow(els);
     this.dirty = false;
   },
 
   /**
    * Check for intersections and cleared intersections on an interval.
    */
-  tick: (function () {
-    var intersections = [];
+  tick: function (time) {
+    var data = this.data;
+    var prevCheckTime = this.prevCheckTime;
 
-    return function (time) {
-      var clearedIntersectedEls = this.clearedIntersectedEls;
-      var el = this.el;
-      var data = this.data;
-      var i;
-      var intersectedEls = this.intersectedEls;
-      var intersection;
-      var lineLength;
-      var prevCheckTime = this.prevCheckTime;
-      var prevIntersectedEls = this.prevIntersectedEls;
-      var rawIntersections;
+    // Only check for intersection if interval time has passed.
+    if (prevCheckTime && (time - prevCheckTime < data.interval)) { return; }
 
-      if (!this.data.enabled) { return; }
+    // Update check time.
+    this.prevCheckTime = time;
+    this.checkIntersections();
+  },
 
-      // Only check for intersection if interval time has passed.
-      if (prevCheckTime && (time - prevCheckTime < data.interval)) { return; }
-      // Update check time.
-      this.prevCheckTime = time;
+  /**
+   * Raycast for intersections and emit events for current and cleared inersections.
+   */
+  checkIntersections: function () {
+    var clearedIntersectedEls = this.clearedIntersectedEls;
+    var el = this.el;
+    var data = this.data;
+    var i;
+    var intersectedEls = this.intersectedEls;
+    var intersection;
+    var intersections = this.intersections;
+    var lineLength;
+    var newIntersectedEls = this.newIntersectedEls;
+    var newIntersections = this.newIntersections;
+    var prevIntersectedEls = this.prevIntersectedEls;
+    var rawIntersections;
+    var self = this;
 
-      // Refresh the object whitelist if needed.
-      if (this.dirty) { this.refreshObjects(); }
+    if (!this.data.enabled) { return; }
 
-      // Store old previously intersected entities.
-      copyArray(this.prevIntersectedEls, this.intersectedEls);
+    // Refresh the object whitelist if needed.
+    if (this.dirty) { this.refreshObjects(); }
 
-      // Raycast.
-      this.updateOriginDirection();
-      rawIntersections = this.raycaster.intersectObjects(this.objects, data.recursive);
+    // Store old previously intersected entities.
+    copyArray(this.prevIntersectedEls, this.intersectedEls);
 
-      // Only keep intersections against objects that have a reference to an entity.
-      intersections.length = 0;
-      for (i = 0; i < rawIntersections.length; i++) {
-        intersection = rawIntersections[i];
-        // Don't intersect with own line.
-        if (data.showLine && intersection.object === el.getObject3D('line')) {
-          continue;
-        }
-        if (intersection.object.el) {
-          intersections.push(intersection);
-        }
+    // Raycast.
+    this.updateOriginDirection();
+    rawIntersections = this.raycaster.intersectObjects(this.objects, data.recursive);
+
+    // Only keep intersections against objects that have a reference to an entity.
+    intersections.length = 0;
+    intersectedEls.length = 0;
+    for (i = 0; i < rawIntersections.length; i++) {
+      intersection = rawIntersections[i];
+      // Don't intersect with own line.
+      if (data.showLine && intersection.object === el.getObject3D('line')) {
+        continue;
       }
-
-      // Update intersectedEls.
-      intersectedEls.length = intersections.length;
-      for (i = 0; i < intersections.length; i++) {
-        intersectedEls[i] = intersections[i].object.el;
+      if (intersection.object.el) {
+        intersections.push(intersection);
+        intersectedEls.push(intersection.object.el);
       }
+    }
 
-      // Emit intersected on intersected entity per intersected entity.
-      for (i = 0; i < intersections.length; i++) {
-        intersections[i].object.el.emit('raycaster-intersected', {
-          el: el,
-          intersection: intersections[i]
-        });
+    // Get newly intersected entities.
+    newIntersections.length = 0;
+    newIntersectedEls.length = 0;
+    for (i = 0; i < intersections.length; i++) {
+      if (prevIntersectedEls.indexOf(intersections[i].object.el) === -1) {
+        newIntersections.push(intersections[i]);
+        newIntersectedEls.push(intersections[i].object.el);
       }
+    }
 
-      // Emit all intersections at once on raycasting entity.
-      if (intersections.length) {
-        el.emit('raycaster-intersection', {
-          els: intersectedEls,
-          intersections: intersections
-        });
-      }
+    // Emit intersection cleared on both entities per formerly intersected entity.
+    clearedIntersectedEls.length = 0;
+    for (i = 0; i < prevIntersectedEls.length; i++) {
+      if (intersectedEls.indexOf(prevIntersectedEls[i]) !== -1) { continue; }
+      prevIntersectedEls[i].emit('raycaster-intersected-cleared',
+                                 this.intersectedClearedDetail);
+      clearedIntersectedEls.push(prevIntersectedEls[i]);
+    }
+    if (clearedIntersectedEls.length) {
+      el.emit('raycaster-intersection-cleared', this.intersectionClearedDetail);
+    }
 
-      // Emit intersection cleared on both entities per formerly intersected entity.
-      clearedIntersectedEls.length = 0;
-      for (i = 0; i < prevIntersectedEls.length; i++) {
-        if (intersectedEls.indexOf(prevIntersectedEls[i]) !== -1) { continue; }
-        prevIntersectedEls[i].emit('raycaster-intersected-cleared', {el: el});
-        clearedIntersectedEls.push(prevIntersectedEls[i]);
-      }
-      if (clearedIntersectedEls.length) {
-        el.emit('raycaster-intersection-cleared', this.intersectionClearedDetail);
-      }
+    // Emit intersected on intersected entity per intersected entity.
+    for (i = 0; i < newIntersectedEls.length; i++) {
+      newIntersectedEls[i].emit('raycaster-intersected', {
+        el: el,
+        intersection: newIntersections[i]
+      });
+    }
 
-      // Update line length.
-      if (data.showLine) {
+    // Emit all intersections at once on raycasting entity.
+    if (newIntersections.length) {
+      el.emit('raycaster-intersection', {
+        els: newIntersectedEls,
+        intersections: newIntersections
+      });
+    }
+
+    // Update line length.
+    setTimeout(function () {
+      if (self.data.showLine) {
         if (data.adjustLineLength && intersections.length) {
           if (intersections[0].object.el === el && intersections[1]) {
             lineLength = intersections[1].distance;
@@ -243,10 +267,10 @@ module.exports.Component = registerComponent('raycaster', {
             lineLength = intersections[0].distance;
           }
         }
-        this.drawLine(lineLength);
+        self.drawLine(lineLength);
       }
-    };
-  })(),
+    });
+  },
 
   /**
    * Update origin and direction of raycaster using entity transforms and supplied origin or
@@ -254,7 +278,6 @@ module.exports.Component = registerComponent('raycaster', {
    */
   updateOriginDirection: (function () {
     var direction = new THREE.Vector3();
-    var quaternion = new THREE.Quaternion();
     var originVec3 = new THREE.Vector3();
 
     // Closure to make quaternion/vector3 objects private.
@@ -269,7 +292,7 @@ module.exports.Component = registerComponent('raycaster', {
 
       // Grab the position and rotation.
       el.object3D.updateMatrixWorld();
-      el.object3D.matrixWorld.decompose(originVec3, quaternion, dummyVec);
+      el.object3D.getWorldPosition(originVec3);
 
       // If non-zero origin, translate the origin into world space.
       if (data.origin.x !== 0 || data.origin.y !== 0 || data.origin.z !== 0) {
@@ -279,7 +302,7 @@ module.exports.Component = registerComponent('raycaster', {
       // three.js raycaster direction is relative to 0, 0, 0 NOT the origin / offset we
       // provide. Apply the offset to the direction, then rotation from the object,
       // and normalize.
-      direction.copy(data.direction).add(data.origin).applyQuaternion(quaternion).normalize();
+      direction.copy(data.direction).transformDirection(el.object3D.matrixWorld).normalize();
 
       // Apply offset and direction, in world coordinates.
       this.raycaster.set(originVec3, direction);
@@ -302,9 +325,12 @@ module.exports.Component = registerComponent('raycaster', {
   drawLine: function (length) {
     var data = this.data;
     var el = this.el;
-    // We switch each time the vector so the line update is triggered
-    // and to avoid unnecessary vector clone.
-    var endVec3 = this.lineData.end === this.lineEndVec3 ? this.otherLineEndVec3 : this.lineEndVec3;
+    var endVec3;
+
+    // Switch each time vector so line update triggered and to avoid unnecessary vector clone.
+    endVec3 = this.lineData.end === this.lineEndVec3
+      ? this.otherLineEndVec3
+      : this.lineEndVec3;
 
     // Treat Infinity as 1000m for the line.
     if (length === undefined) {
@@ -316,40 +342,44 @@ module.exports.Component = registerComponent('raycaster', {
     this.lineData.start = data.origin;
     this.lineData.end = endVec3.copy(this.unitLineEndVec3).multiplyScalar(length);
     el.setAttribute('line', this.lineData);
-  }
+  },
+
+  /**
+   * Return children of each element's object3D group. Children are flattened
+   * by one level, removing the THREE.Group wrapper, so that non-recursive
+   * raycasting remains useful.
+   *
+   * @param  {Array<Element>} els
+   * @return {Array<THREE.Object3D>}
+   */
+  flattenChildrenShallow: (function () {
+    var groups = [];
+
+    return function (els) {
+      var children;
+      var i;
+      var objects = this.objects;
+
+      // Push meshes onto list of objects to intersect.
+      groups.length = 0;
+      for (i = 0; i < els.length; i++) {
+        if (els[i].object3D) {
+          groups.push(els[i].object3D);
+        }
+      }
+
+      // Each entity's root is a THREE.Group. Return the group's chilrden.
+      objects.length = 0;
+      for (i = 0; i < groups.length; i++) {
+        children = groups[i].children;
+        if (children && children.length) {
+          objects.push.apply(objects, children);
+        }
+      }
+      return objects;
+    };
+  })()
 });
-
-/**
- * Returns children of each element's object3D group. Children are flattened
- * by one level, removing the THREE.Group wrapper, so that non-recursive
- * raycasting remains useful.
- *
- * @param  {Array<Element>} els
- * @return {Array<THREE.Object3D>}
- */
-function flattenChildrenShallow (els) {
-  var groups = [];
-  var objects = [];
-  var children;
-  var i;
-
-  // Push meshes onto list of objects to intersect.
-  for (i = 0; i < els.length; i++) {
-    if (els[i].object3D) {
-      groups.push(els[i].object3D);
-    }
-  }
-
-  // Each entity's root is a THREE.Group. Return the group's chilrden.
-  for (i = 0; i < groups.length; i++) {
-    children = groups[i].children;
-    if (children && children.length) {
-      objects.push.apply(objects, children);
-    }
-  }
-
-  return objects;
-}
 
 /**
  * Copy contents of one array to another without allocating new array.

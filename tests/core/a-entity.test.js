@@ -347,10 +347,10 @@ suite('a-entity', function () {
     test('can update component data', function () {
       var el = this.el;
       el.setAttribute('position', '10 20 30');
-      assert.deepEqual(el.getAttribute('position'), {x: 10, y: 20, z: 30});
+      assert.shallowDeepEqual(el.getAttribute('position'), {x: 10, y: 20, z: 30});
 
       el.setAttribute('position', {x: 30, y: 20, z: 10});
-      assert.deepEqual(el.getAttribute('position'), {x: 30, y: 20, z: 10});
+      assert.shallowDeepEqual(el.getAttribute('position'), {x: 30, y: 20, z: 10});
     });
 
     test('can partially update multiple properties of a component', function () {
@@ -392,7 +392,7 @@ suite('a-entity', function () {
     test('can partially update vec3', function () {
       var el = this.el;
       el.setAttribute('position', {y: 20});
-      assert.deepEqual(el.getAttribute('position'), {x: 0, y: 20, z: 0});
+      assert.shallowDeepEqual(el.getAttribute('position'), {x: 0, y: 20, z: 0});
     });
 
     test('can update component property with asymmetrical property type', function () {
@@ -856,25 +856,6 @@ suite('a-entity', function () {
     });
   });
 
-  suite('getOrCreateObject3D', function () {
-    test('creates an object3D if the type does not exist', function () {
-      var el = this.el;
-      el.getOrCreateObject3D('mesh', THREE.Object3D);
-      assert.ok(el.getObject3D('mesh'));
-      assert.equal(el.getObject3D('mesh').constructor, THREE.Object3D);
-    });
-
-    test('returns existing object3D if it exists', function () {
-      var el = this.el;
-      var Constructor = function () {};
-      var dummy = {};
-      el.object3DMap['dummy'] = dummy;
-      el.getOrCreateObject3D('dummy', Constructor);
-      assert.ok(el.getObject3D('dummy'));
-      assert.equal(el.getObject3D('dummy'), dummy);
-    });
-  });
-
   suite('getAttribute', function () {
     test('returns full component data', function () {
       var componentData;
@@ -916,6 +897,69 @@ suite('a-entity', function () {
       data = el.getAttribute('geometry');
       assert.ok(el.components.geometry.data === data);
     });
+
+    test('returns position previously set with setAttribute', function () {
+      var el = this.el;
+      el.setAttribute('position', {x: 1, y: 2, z: 3});
+      assert.shallowDeepEqual(el.getAttribute('position'), {x: 1, y: 2, z: 3});
+    });
+
+    test('returns position set by modifying the object3D position', function () {
+      var el = this.el;
+      el.object3D.position.set(1, 2, 3);
+      assert.shallowDeepEqual(el.getAttribute('position'), {x: 1, y: 2, z: 3});
+    });
+
+    test('returns rotation previously set with setAttribute', function () {
+      var el = this.el;
+      el.setAttribute('rotation', {x: 10, y: 45, z: 50});
+      assert.shallowDeepEqual(el.getAttribute('rotation'), {x: 10, y: 45, z: 50});
+    });
+
+    test('returns rotation previously set by modifying the object3D rotation', function () {
+      var el = this.el;
+      el.object3D.rotation.set(Math.PI, Math.PI / 2, Math.PI / 4);
+      assert.shallowDeepEqual(el.getAttribute('rotation'), {x: 180, y: 90, z: 45});
+    });
+
+    test('returns rotation previously set by modifying the object3D quaternion', function () {
+      var el = this.el;
+      var quaternion = new THREE.Quaternion();
+      var euler = new THREE.Euler();
+      euler.order = 'YXZ';
+      euler.set(Math.PI / 2, Math.PI, 0);
+      quaternion.setFromEuler(euler);
+      el.object3D.quaternion.copy(quaternion);
+      assert.shallowDeepEqual(el.getAttribute('rotation'), {x: 90, y: 180, z: 0});
+    });
+
+    test('returns scale previously set with setAttribute', function () {
+      var el = this.el;
+      el.setAttribute('scale', {x: 1, y: 2, z: 3});
+      assert.shallowDeepEqual(el.getAttribute('scale'), {x: 1, y: 2, z: 3});
+    });
+
+    test('returns scale set by modifying the object3D scale', function () {
+      var el = this.el;
+      el.object3D.scale.set(1, 2, 3);
+      assert.shallowDeepEqual(el.getAttribute('scale'), {x: 1, y: 2, z: 3});
+    });
+
+    test('returns visible previously set with setAttribute', function () {
+      var el = this.el;
+      el.setAttribute('visible', false);
+      assert.equal(el.getAttribute('visible'), false);
+      el.setAttribute('visible', true);
+      assert.equal(el.getAttribute('visible'), true);
+    });
+
+    test('returns visible set by modifying the object3D visible', function () {
+      var el = this.el;
+      el.object3D.visible = false;
+      assert.equal(el.getAttribute('visible'), false);
+      el.object3D.visible = true;
+      assert.equal(el.getAttribute('visible'), true);
+    });
   });
 
   suite('removeAttribute', function () {
@@ -953,7 +997,7 @@ suite('a-entity', function () {
       assert.ok('position' in el.components);
     });
 
-    test('does not remove mixed-in component', function () {
+    test('can remove mixed-in component', function () {
       var el = this.el;
       var mixinId = 'geometry';
       mixinFactory(mixinId, {geometry: 'primitive: box'});
@@ -961,9 +1005,9 @@ suite('a-entity', function () {
       el.setAttribute('geometry', 'primitive: sphere');
       assert.ok('geometry' in el.components);
       el.removeAttribute('geometry');
-      assert.notEqual(el.getAttribute('geometry'), null);
+      assert.equal(el.getAttribute('geometry'), null);
       // Geometry still exists since it is mixed in.
-      assert.ok('geometry' in el.components);
+      assert.notOk('geometry' in el.components);
     });
 
     test('resets a component property', function () {
@@ -1192,10 +1236,10 @@ suite('a-entity', function () {
       var sceneEl = el.sceneEl;
       var component;
       el.play();
-      el.setAttribute('look-controls', '');
-      component = el.components['look-controls'];
+      el.setAttribute('raycaster', '');
+      component = el.components['raycaster'];
       assert.notEqual(sceneEl.behaviors.tick.indexOf(component), -1);
-      el.removeAttribute('look-controls');
+      el.removeAttribute('raycaster');
       assert.equal(sceneEl.behaviors.tick.indexOf(component), -1);
     });
 
@@ -1244,6 +1288,29 @@ suite('a-entity', function () {
       assert.equal(el.getAttribute('material').color, 'red');
       el.updateComponent('material', null);
       assert.equal(el.components.material, undefined);
+    });
+  });
+
+  suite('updateComponents', function () {
+    setup(function (done) {
+      this.child = this.el.appendChild(document.createElement('a-entity'));
+      this.child.addEventListener('loaded', function () {
+        done();
+      });
+    });
+    test('nested calls do not leak components to children', function () {
+      registerComponent('test', {
+        init: function () {
+          var children = this.el.getChildEntities();
+          if (children.length) {
+            children[0].setAttribute('mixin', 'addGeometry');
+          }
+        }
+      });
+      mixinFactory('addTest', {test: ''});
+      mixinFactory('addGeometry', {geometry: 'shape: sphere'});
+      this.el.setAttribute('mixin', 'addTest');
+      assert.notOk(this.child.components['test']);
     });
   });
 
@@ -1308,12 +1375,12 @@ suite('a-entity', function () {
       var el = this.el;
       mixinFactory('material', {material: 'shader: flat'});
       mixinFactory('position', {position: '1 2 3'});
-      mixinFactory('rotation', {rotation: '10 20 30'});
+      mixinFactory('rotation', {rotation: '10 20 45'});
       el.setAttribute('mixin', '  material\t\nposition \t  rotation\n  ');
       el.setAttribute('material', 'color: red');
       assert.shallowDeepEqual(el.getAttribute('material'), {shader: 'flat', color: 'red'});
       assert.shallowDeepEqual(el.getAttribute('position'), {x: 1, y: 2, z: 3});
-      assert.shallowDeepEqual(el.getAttribute('rotation'), {x: 10, y: 20, z: 30});
+      assert.shallowDeepEqual(el.getAttribute('rotation'), {x: 10, y: 20, z: 45});
       assert.equal(el.mixinEls.length, 3);
     });
 

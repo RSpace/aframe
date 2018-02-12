@@ -28,6 +28,7 @@ Some best practices for the framework:
 [hardware]: ./vr-headsets-and-webvr-browsers.md
 [merge]: ../components/geometry.md#mergeto
 [stats]: ../components/stats.md
+[background]: ../components/background.md
 
 Performance is critical in VR. A high framerate must be maintained in order for
 people to feel comfortable. Here are some ways to help improve performance of
@@ -55,17 +56,25 @@ an A-Frame scene:
   handlers to hook into the global render loop. Use utilities such as
   `AFRAME.utils.throttleTick` to limit the number of times the `tick` handler
   is run if appropriate.
+- Use the **[background component][background]** instead of `a-sky` to define a
+  solid color as the scene background. This prevents the creation of
+  unnecessary geometry.
+- Update `position`, `rotation`, `scale`, and `visible` using at the three.js
+  level (`el.object3D.position`, `el.object3D.position`, `el.object3D.scale`,
+  `el.object3D.visible`) to avoid overhead on `.setAttribute`.
 
 ### GPU Texture Preloading
 
 Until non-blocking texture uploads to the GPU are available, try to draw all
 materials and textures up front. When materials and textures are drawn for the
-first time, the browser will hang and block while uploading to the GPU. Note
-that three.js's renderer does not upload textures to the GPU if objects are
-non-visible. To prevent frame drops during the experience, create and draw all
-materials and textures when the scene starts. Draw them somewhere within the camera
-frustum (viewport) then hide them as needed. We will try to come with a
-convenient API in A-Frame to do this automatically.
+first time, the browser will hang and block while uploading to the GPU. We can
+manually preload textures by calling:
+
+```js
+document.querySelector('a-scene').renderer.setTexture2D(ourTexture, 0);
+```
+
+We will try to come with a convenient API in A-Frame to do this automatically.
 
 [360]: https://aframe-360-gallery.glitch.me
 

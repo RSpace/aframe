@@ -61,6 +61,8 @@ module.exports.Component = registerComponent('text', {
     letterSpacing: {type: 'number', default: 0},
     // `lineHeight` defaults to font's `lineHeight` value.
     lineHeight: {type: 'number'},
+    // `negate` must be true for fonts generated with older versions of msdfgen (white background).
+    negate: {type: 'boolean', default: true},
     opacity: {type: 'number', default: 1.0},
     shader: {default: 'sdf', oneOf: shaders},
     side: {default: 'front', oneOf: ['front', 'back', 'double']},
@@ -74,6 +76,8 @@ module.exports.Component = registerComponent('text', {
     wrapCount: {type: 'number', default: 40},
     // `wrapPixels` will wrap using bmfont pixel units (e.g., dejavu's is 32 pixels).
     wrapPixels: {type: 'number'},
+    // `xOffset` to add padding.
+    xOffset: {type: 'number', default: 0},
     // `yOffset` to adjust generated fonts from tools that may have incorrect metrics.
     yOffset: {type: 'number', default: 0},
     // `zOffset` will provide a small z offset to avoid z-fighting.
@@ -158,7 +162,8 @@ module.exports.Component = registerComponent('text', {
       map: this.texture,
       opacity: data.opacity,
       side: parseSide(data.side),
-      transparent: data.transparent
+      transparent: data.transparent,
+      negate: data.negate
     };
 
     // Shader has not changed, do an update.
@@ -311,7 +316,7 @@ module.exports.Component = registerComponent('text', {
     }
 
     // Position and scale mesh to apply layout.
-    mesh.position.x = x * textScale;
+    mesh.position.x = x * textScale + data.xOffset;
     mesh.position.y = y * textScale;
     // Place text slightly in front to avoid Z-fighting.
     mesh.position.z = data.zOffset;
@@ -340,16 +345,20 @@ module.exports.Component = registerComponent('text', {
   }
 });
 
+/**
+ * Due to using negative scale, we return the opposite side specified.
+ * https://github.com/mrdoob/three.js/pull/12787/
+ */
 function parseSide (side) {
   switch (side) {
     case 'back': {
-      return THREE.BackSide;
+      return THREE.FrontSide;
     }
     case 'double': {
       return THREE.DoubleSide;
     }
     default: {
-      return THREE.FrontSide;
+      return THREE.BackSide;
     }
   }
 }

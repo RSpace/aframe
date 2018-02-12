@@ -1,4 +1,5 @@
-/* global CustomEvent, location */
+/* global location */
+
 /* Centralized place to reference utilities since utils is exposed to the user. */
 var debug = require('./debug');
 var deepAssign = require('deep-assign');
@@ -107,22 +108,6 @@ module.exports.debounce = function (func, wait, immediate) {
 };
 
 /**
- * Fires a custom DOM event.
- *
- * @param {Element} el Element on which to fire the event.
- * @param {String} name Name of the event.
- * @param {Object=} [data={bubbles: true, {detail: <el>}}]
- *   Data to pass as `customEventInit` to the event.
- */
-module.exports.fireEvent = function (el, name, data) {
-  data = data || {};
-  data.detail = data.detail || {};
-  data.detail.target = data.detail.target || el;
-  var evt = new CustomEvent(name, data);
-  el.dispatchEvent(evt);
-};
-
-/**
  * Mix the properties of source object(s) into a destination object.
  *
  * @param  {object} dest - The object to which properties will be copied.
@@ -212,27 +197,47 @@ module.exports.deepEqual = deepEqual;
  *   Difference object where set of keys note which values were not equal, and values are
  *   `b`'s values.
  */
-module.exports.diff = function (a, b) {
-  var diff = {};
-  var keys = Object.keys(a);
-  if (!b) { return diff; }
-  Object.keys(b).forEach(function collectKeys (bKey) {
-    if (keys.indexOf(bKey) === -1) {
-      keys.push(bKey);
+module.exports.diff = (function () {
+  var keys = [];
+
+  return function (a, b, targetObject) {
+    var aVal;
+    var bVal;
+    var bKey;
+    var diff;
+    var key;
+    var i;
+    var isComparingObjects;
+
+    diff = targetObject || {};
+
+    // Collect A keys.
+    keys.length = 0;
+    for (key in a) { keys.push(key); }
+
+    if (!b) { return diff; }
+
+    // Collect B keys.
+    for (bKey in b) {
+      if (keys.indexOf(bKey) === -1) {
+        keys.push(bKey);
+      }
     }
-  });
-  keys.forEach(function doDiff (key) {
-    var aVal = a[key];
-    var bVal = b[key];
-    var isComparingObjects = aVal && bVal &&
-                             aVal.constructor === Object && bVal.constructor === Object;
-    if ((isComparingObjects && !deepEqual(aVal, bVal)) ||
-        (!isComparingObjects && aVal !== bVal)) {
-      diff[key] = bVal;
+
+    for (i = 0; i < keys.length; i++) {
+      key = keys[i];
+      aVal = a[key];
+      bVal = b[key];
+      isComparingObjects = aVal && bVal &&
+                          aVal.constructor === Object && bVal.constructor === Object;
+      if ((isComparingObjects && !deepEqual(aVal, bVal)) ||
+          (!isComparingObjects && aVal !== bVal)) {
+        diff[key] = bVal;
+      }
     }
-  });
-  return diff;
-};
+    return diff;
+  };
+})();
 
 /**
  * Returns whether we should capture this keyboard event for keyboard shortcuts.
@@ -317,3 +322,19 @@ module.exports.findAllScenes = function (el) {
 
 // Must be at bottom to avoid circular dependency.
 module.exports.srcLoader = require('./src-loader');
+
+/**
+ * String split with cached result.
+ */
+module.exports.split = (function () {
+  var splitCache = {};
+
+  return function (str, delimiter) {
+    if (!(delimiter in splitCache)) { splitCache[delimiter] = {}; }
+
+    if (str in splitCache[delimiter]) { return splitCache[delimiter][str]; }
+
+    splitCache[delimiter][str] = str.split(delimiter);
+    return splitCache[delimiter][str];
+  };
+})();

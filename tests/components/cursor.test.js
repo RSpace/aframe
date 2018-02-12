@@ -355,6 +355,21 @@ suite('cursor', function () {
       assert.notOk(el.is('cursor-fusing'));
       assert.notOk(el.is('cursor-hovering'));
     });
+
+    test('sets another interesected element if any', function () {
+      var dummyEl = document.createElement('a-entity');
+      var dummyIntersection = {object: {el: dummyEl}};
+      component.intersection = intersection;
+      component.intersectedEl = intersectedEl;
+      el.addState('cursor-fusing');
+      el.addState('cursor-hovering');
+      el.components.raycaster.intersections = [dummyIntersection];
+      el.emit('raycaster-intersection-cleared', {clearedEls: [intersectedEl]});
+      assert.notOk(el.is('cursor-fusing'));
+      assert.ok(el.is('cursor-hovering'));
+      assert.equal(dummyEl, el.components.cursor.intersectedEl);
+      assert.equal(dummyIntersection, el.components.cursor.intersection);
+    });
   });
 
   suite('onMouseMove', function () {
@@ -379,6 +394,26 @@ suite('cursor', function () {
       process.nextTick(function () {
         var raycaster = el.getAttribute('raycaster');
         assert.notEqual(raycaster.direction.x, 0);
+        done();
+      });
+    });
+
+    test('casts ray at current touch location', function (done) {
+      var event = new CustomEvent('touchstart');
+      var target = el.sceneEl.appendChild(document.createElement('a-entity'));
+      var mouseDownSpy = this.sinon.spy();
+      el.addEventListener('mousedown', mouseDownSpy);
+      el.setAttribute('cursor', 'rayOrigin', 'mouse');
+      target.setAttribute('geometry', '');
+      target.setAttribute('position', '0 0 -5');
+      target.addEventListener('loaded', function () {
+        target.object3D.updateMatrixWorld();
+        el.components.raycaster.refreshObjects();
+        el.components.raycaster.tick();
+        assert.strictEqual(component.intersectedEl, target);
+        event.touches = {item: function () { return {clientX: 5, clientY: 5}; }};
+        el.sceneEl.canvas.dispatchEvent(event);
+        assert.isFalse(mouseDownSpy.calledWithMatch({detail: {intersectedEl: target}}));
         done();
       });
     });

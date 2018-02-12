@@ -21,7 +21,6 @@ var warn = utils.debug('core:a-scene:warn');
 /**
  * Scene element, holds all entities.
  *
- * @member {number} animationFrameID
  * @member {array} behaviors - Component instances that have registered themselves to be
            updated on every tick.
  * @member {object} camera - three.js Camera object.
@@ -31,7 +30,6 @@ var warn = utils.debug('core:a-scene:warn');
  * @member {object} object3D - Root three.js Scene object.
  * @member {object} renderer
  * @member {bool} renderStarted
- * @member {object} effect - three.js VREffect
  * @member {object} systems - Registered instantiated systems.
  * @member {number} time
  */
@@ -105,7 +103,18 @@ module.exports.AScene = registerElement('a-scene', {
 
         resize = bind(this.resize, this);
         window.addEventListener('load', resize);
-        window.addEventListener('resize', resize);
+        window.addEventListener('resize', function () {
+          // Workaround for a Webkit bug (https://bugs.webkit.org/show_bug.cgi?id=170595)
+          // where the window does not contain the correct viewport size
+          // after an orientation change. The window size is correct if the operation
+          // is postponed a few milliseconds.
+          // self.resize can be called directly once the bug above is fixed.
+          if (this.isIOS) {
+            setTimeout(resize, 100);
+          } else {
+            resize();
+          }
+        });
         this.play();
 
         // Add to scene index.
@@ -167,17 +176,8 @@ module.exports.AScene = registerElement('a-scene', {
      */
     detachedCallback: {
       value: function () {
-        var sceneIndex;
-
-        if (this.effect && this.effect.cancelAnimationFrame) {
-          this.effect.cancelAnimationFrame(this.animationFrameID);
-        } else {
-          window.cancelAnimationFrame(this.animationFrameID);
-        }
-        this.animationFrameID = null;
-
         // Remove from scene index.
-        sceneIndex = scenes.indexOf(this);
+        var sceneIndex = scenes.indexOf(this);
         scenes.splice(sceneIndex, 1);
 
         window.removeEventListener('vrdisplaypresentchange', this.onVRPresentChangeBound);
@@ -193,21 +193,22 @@ module.exports.AScene = registerElement('a-scene', {
     /**
      * Add ticks and tocks.
      *
-     * @param {object} behavior - Generally a component. Must implement a .update() method
-     *   to be called on every tick.
+     * @param {object} behavior - A component.
      */
     addBehavior: {
       value: function (behavior) {
-        var self = this;
+        var behaviorArr;
         var behaviors = this.behaviors;
+        var behaviorType;
+
         // Check if behavior has tick and/or tock and add the behavior to the appropriate list.
-        Object.keys(behaviors).forEach(function (behaviorType) {
-          if (!behavior[behaviorType]) { return; }
-          var behaviorArr = self.behaviors[behaviorType];
+        for (behaviorType in behaviors) {
+          if (!behavior[behaviorType]) { continue; }
+          behaviorArr = this.behaviors[behaviorType];
           if (behaviorArr.indexOf(behavior) === -1) {
             behaviorArr.push(behavior);
           }
-        });
+        }
       }
     },
 
@@ -241,24 +242,25 @@ module.exports.AScene = registerElement('a-scene', {
     enterVR: {
       value: function (fromExternal) {
         var self = this;
-        var effect = this.effect;
-
+        var vrDisplay;
+        var vrManager = self.renderer.vr;
         // Don't enter VR if already in VR.
         if (this.is('vr-mode')) { return Promise.resolve('Already in VR.'); }
-
         // Enter VR via WebVR API.
         if (!fromExternal && (this.checkHeadsetConnected() || this.isMobile)) {
-          return effect && effect.requestPresent().then(enterVRSuccess, enterVRFailure) || Promise.reject(new Error('VREffect not initialized'));
+          vrDisplay = utils.device.getVRDisplay();
+          vrManager.setDevice(vrDisplay);
+          vrManager.enabled = true;
+          vrManager.setPoseTarget(this.camera.el.object3D);
+          return vrDisplay.requestPresent([{source: this.canvas}])
+                          .then(enterVRSuccess, enterVRFailure);
         }
-
-        // Either entered VR already via WebVR API or VR not supported.
         enterVRSuccess();
         return Promise.resolve();
 
         function enterVRSuccess () {
           self.addState('vr-mode');
           self.emit('enter-vr', {target: self});
-
           // Lock to landscape orientation on mobile.
           if (self.isMobile && screen.orientation && screen.orientation.lock) {
             screen.orientation.lock('landscape');
@@ -283,7 +285,7 @@ module.exports.AScene = registerElement('a-scene', {
           }
         }
       },
-      writable: window.debug
+      writable: true
     },
      /**
      * Call `exitPresent` if WebVR or WebVR polyfill.
@@ -296,6 +298,7 @@ module.exports.AScene = registerElement('a-scene', {
     exitVR: {
       value: function (fromExternal) {
         var self = this;
+        var vrDisplay;
 
         // Don't exit VR if not in VR.
         if (!this.is('vr-mode')) { return Promise.resolve('Not in VR.'); }
@@ -304,7 +307,9 @@ module.exports.AScene = registerElement('a-scene', {
 
         // Handle exiting VR if not yet already and in a headset or polyfill.
         if (!fromExternal && (this.checkHeadsetConnected() || this.isMobile)) {
-          return this.effect.exitPresent().then(exitVRSuccess, exitVRFailure);
+          this.renderer.vr.enabled = false;
+          vrDisplay = utils.device.getVRDisplay();
+          return vrDisplay.exitPresent().then(exitVRSuccess, exitVRFailure);
         }
 
         // Handle exiting VR in all other cases (2D fullscreen, external exit VR event).
@@ -333,7 +338,7 @@ module.exports.AScene = registerElement('a-scene', {
           }
         }
       },
-      writable: window.debug
+      writable: true
     },
 
     pointerRestricted: {
@@ -432,21 +437,22 @@ module.exports.AScene = registerElement('a-scene', {
     },
 
     /**
-     * @param {object} behavior - Generally a component. Has registered itself to behaviors.
+     * @param {object} behavior - A component.
      */
     removeBehavior: {
       value: function (behavior) {
-        var self = this;
+        var behaviorArr;
+        var behaviorType;
         var behaviors = this.behaviors;
+        var index;
+
         // Check if behavior has tick and/or tock and remove the behavior from the appropriate array.
-        Object.keys(behaviors).forEach(function (behaviorType) {
-          if (!behavior[behaviorType]) { return; }
-          var behaviorArr = self.behaviors[behaviorType];
-          var index = behaviorArr.indexOf(behavior);
-          if (index !== -1) {
-            behaviorArr.splice(index, 1);
-          }
-        });
+        for (behaviorType in behaviors) {
+          if (!behavior[behaviorType]) { continue; }
+          behaviorArr = this.behaviors[behaviorType];
+          index = behaviorArr.indexOf(behavior);
+          if (index !== -1) { behaviorArr.splice(index, 1); }
+        }
       }
     },
 
@@ -456,13 +462,16 @@ module.exports.AScene = registerElement('a-scene', {
         var canvas = this.canvas;
         var embedded = this.getAttribute('embedded') && !this.is('vr-mode');
         var size;
-        var isEffectPresenting = this.effect && this.effect.isPresenting;
+        var vrDevice;
+        var isVRPresenting;
+        vrDevice = this.renderer.vr.getDevice();
+        isVRPresenting = this.renderer.vr.enabled && vrDevice && vrDevice.isPresenting;
         // Do not update renderer, if a camera or a canvas have not been injected.
-        // In VR mode, VREffect handles canvas resize based on the dimensions returned by
+        // In VR mode, three handles canvas resize based on the dimensions returned by
         // the getEyeParameters function of the WebVR API. These dimensions are independent of
         // the window size, therefore should not be overwritten with the window's width and height,
         // except when in fullscreen mode.
-        if (!camera || !canvas || (this.is('vr-mode') && (this.isMobile || isEffectPresenting))) { return; }
+        if (!camera || !canvas || (this.is('vr-mode') && (this.isMobile || isVRPresenting))) { return; }
         // Update camera.
         size = getCanvasSize(canvas, embedded);
         camera.aspect = size.width / size.height;
@@ -470,13 +479,12 @@ module.exports.AScene = registerElement('a-scene', {
         // Notify renderer of size change.
         this.renderer.setSize(size.width, size.height, false);
       },
-      writable: window.debug
+      writable: true
     },
 
     setupRenderer: {
       value: function () {
         var renderer;
-
         renderer = this.renderer = new THREE.WebGLRenderer({
           canvas: this.canvas,
           antialias: shouldAntiAlias(this),
@@ -484,8 +492,6 @@ module.exports.AScene = registerElement('a-scene', {
         });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.sortObjects = false;
-        this.effect = new THREE.VREffect(renderer);
-        this.effect.autoSubmitFrame = false;
       },
       writable: window.debug
     },
@@ -608,18 +614,16 @@ module.exports.AScene = registerElement('a-scene', {
      */
     render: {
       value: function () {
-        var effect = this.effect;
         var delta = this.clock.getDelta() * 1000;
+        var renderer = this.renderer;
         this.time = this.clock.elapsedTime * 1000;
 
         if (this.isPlaying) { this.tick(this.time, delta); }
 
-        this.animationFrameID = effect.requestAnimationFrame(this.render);
-        effect.render(this.object3D, this.camera, this.renderTarget);
+        renderer.animate(this.render);
+        renderer.render(this.object3D, this.camera, this.renderTarget);
 
         if (this.isPlaying) { this.tock(this.time, delta); }
-
-        this.effect.submitFrame();
       },
       writable: true
     }

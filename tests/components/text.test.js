@@ -175,11 +175,16 @@ suite('text', function () {
 
     test('updates material side', function () {
       var value;
-      value = el.getObject3D('text').material.side;
-      assert.equal(value, THREE.FrontSide);
       el.setAttribute('text', 'side', 'double');
       value = el.getObject3D('text').material.side;
       assert.equal(value, THREE.DoubleSide);
+    });
+
+    test('updates material negate', function () {
+      var value;
+      el.setAttribute('text', 'negate', false);
+      value = el.getObject3D('text').material.uniforms.negate.value;
+      assert.equal(value, 0.0);
     });
   });
 
